@@ -1012,19 +1012,56 @@ document.addEventListener('click', e => {
 });
 
 // ── Helpers for dynamic arrows ──
-function getNodeCenter(boxId) {
-  const box = document.getElementById(boxId);
-  if (!box) return { x: 0, y: 0 };
-  const nodeDiv = box.closest('.node');
+function _getNodeSvgRect(boxId) {
+  const box     = document.getElementById(boxId);
+  if (!box) return null;
+  const nd      = box.closest('.node');
   const canvas  = document.getElementById('flowCanvas');
   const scaleX  = 1200 / canvas.offsetWidth;
   const scaleY  = 380  / canvas.offsetHeight;
-  const nx = parseInt(nodeDiv.style.left) || 0;
-  const ny = parseInt(nodeDiv.style.top)  || 0;
+  const nx = parseInt(nd.style.left) || 0;
+  const ny = parseInt(nd.style.top)  || 0;
+  const nw = nd.offsetWidth, nh = nd.offsetHeight;
   return {
-    x: Math.round((nx + nodeDiv.offsetWidth  / 2) * scaleX),
-    y: Math.round((ny + nodeDiv.offsetHeight / 2) * scaleY)
+    cx: (nx + nw / 2) * scaleX,
+    cy: (ny + nh / 2) * scaleY,
+    hw: (nw / 2) * scaleX,
+    hh: (nh / 2) * scaleY
   };
+}
+function getNodeCenter(boxId) {
+  const r = _getNodeSvgRect(boxId);
+  return r ? { x: Math.round(r.cx), y: Math.round(r.cy) } : { x: 0, y: 0 };
+}
+// Returns the point on boxId's border closest to (fromX, fromY)
+function edgePoint(boxId, fromX, fromY) {
+  const r = _getNodeSvgRect(boxId);
+  if (!r) return { x: fromX, y: fromY };
+  const dx = r.cx - fromX, dy = r.cy - fromY;
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return { x: r.cx, y: r.cy };
+  let t = Infinity;
+  // left/right faces
+  if (Math.abs(dx) > 0.01) {
+    [-r.hw, r.hw].forEach(hw => {
+      const tc = (r.cx + hw - fromX) / dx;
+      if (tc > 0) {
+        const yi = fromY + tc * dy;
+        if (Math.abs(yi - r.cy) <= r.hh + 0.5) t = Math.min(t, tc);
+      }
+    });
+  }
+  // top/bottom faces
+  if (Math.abs(dy) > 0.01) {
+    [-r.hh, r.hh].forEach(hh => {
+      const tc = (r.cy + hh - fromY) / dy;
+      if (tc > 0) {
+        const xi = fromX + tc * dx;
+        if (Math.abs(xi - r.cx) <= r.hw + 0.5) t = Math.min(t, tc);
+      }
+    });
+  }
+  if (!isFinite(t)) return { x: r.cx, y: r.cy };
+  return { x: Math.round(fromX + t * dx), y: Math.round(fromY + t * dy) };
 }
 function _setPath(id, d) {
   const el = document.getElementById(id);
@@ -1039,6 +1076,7 @@ function updateArrows() {
   const canvas = document.getElementById('flowCanvas');
   if (!svg || !canvas) return;
 
+  // Centers (for control points)
   const P  = getNodeCenter('node-producer');
   const L  = getNodeCenter('node-leader');
   const F1 = getNodeCenter('node-f1');
@@ -1051,51 +1089,71 @@ function updateArrows() {
   const allText = [...svg.querySelectorAll('text')];
   const findText = kw => allText.find(t => t.textContent.includes(kw));
 
-  // 1. Producer → Leader  (straight write)
-  _setPath('path-prod-leader', `M${P.x},${P.y} L${L.x},${L.y}`);
-  _setTxt(findText('write'), Math.round((P.x+L.x)/2), Math.round((P.y+L.y)/2) - 6);
+  // Edge points (border-snapped endpoints)
+  const P_L   = edgePoint('node-producer',   L.x,  L.y);   // Producer border → Leader
+  const L_P   = edgePoint('node-leader',     P.x,  P.y);   // Leader border → Producer
+  const L_F1  = edgePoint('node-leader',     F1.x, F1.y);
+  const F1_L  = edgePoint('node-f1',         L.x,  L.y);
+  const L_F2  = edgePoint('node-leader',     F2.x, F2.y);
+  const F2_L  = edgePoint('node-f2',         L.x,  L.y);
+  const L_R   = edgePoint('node-leader',     R.x,  R.y);
+  const R_L   = edgePoint('node-remote',     L.x,  L.y);
+  const L_TS  = edgePoint('node-leader',     TS.x, TS.y);
+  const TS_L  = edgePoint('node-tierstate',  L.x,  L.y);
+  const TS_F1 = edgePoint('node-tierstate',  F1.x, F1.y);
+  const F1_TS = edgePoint('node-f1',         TS.x, TS.y);
+  const RT_L  = edgePoint('node-rt',         L.x,  L.y);
+  const L_RT  = edgePoint('node-leader',     RT.x, RT.y);
+  const HI_R  = edgePoint('node-hist',       R.x,  R.y);
+  const R_HI  = edgePoint('node-remote',     HI.x, HI.y);
+  const R_HI2 = edgePoint('node-remote',     HI.x, HI.y);
+  const HI_R2 = edgePoint('node-hist',       R.x,  R.y);
 
-  // 2. Leader → Follower1  (curve up)
+  // 1. Producer → Leader (straight)
+  _setPath('path-prod-leader', `M${P_L.x},${P_L.y} L${L_P.x},${L_P.y}`);
+  _setTxt(findText('write'), Math.round((P_L.x+L_P.x)/2), Math.round((P_L.y+L_P.y)/2) - 6);
+
+  // 2. Leader → Follower1 (curve up)
   const cp1x = Math.round((L.x+F1.x)/2);
   const cp1y = Math.min(L.y, F1.y) - 30;
-  _setPath('path-rep1', `M${L.x},${L.y} C${cp1x},${cp1y} ${cp1x},${cp1y} ${F1.x},${F1.y}`);
+  _setPath('path-rep1', `M${L_F1.x},${L_F1.y} C${cp1x},${cp1y} ${cp1x},${cp1y} ${F1_L.x},${F1_L.y}`);
 
-  // 3. Leader → Follower2  (curve down)
+  // 3. Leader → Follower2 (curve down)
   const cp2x = Math.round((L.x+F2.x)/2);
   const cp2y = Math.max(L.y, F2.y) + 25;
-  _setPath('path-rep2', `M${L.x},${L.y} C${cp2x},${cp2y} ${cp2x},${cp2y} ${F2.x},${F2.y}`);
+  _setPath('path-rep2', `M${L_F2.x},${L_F2.y} C${cp2x},${cp2y} ${cp2x},${cp2y} ${F2_L.x},${F2_L.y}`);
 
-  // 4. Leader → Remote  (S-curve upload)
+  // 4. Leader → Remote (S-curve upload)
   const tmx = Math.round((L.x+R.x)/2);
-  _setPath('path-tier', `M${L.x},${L.y} C${tmx},${L.y} ${tmx},${R.y} ${R.x},${R.y}`);
+  _setPath('path-tier', `M${L_R.x},${L_R.y} C${tmx},${L.y} ${tmx},${R.y} ${R_L.x},${R_L.y}`);
   _setTxt(findText('upload'), tmx, Math.round((L.y+R.y)/2) - 8);
 
-  // 5. Leader → TierState  (elbow curve)
+  // 5. Leader → TierState (elbow)
   const ltsMy = Math.round((L.y+TS.y)/2);
-  _setPath('path-meta', `M${L.x},${L.y} C${L.x},${ltsMy} ${TS.x},${ltsMy} ${TS.x},${TS.y}`);
+  _setPath('path-meta', `M${L_TS.x},${L_TS.y} C${L.x},${ltsMy} ${TS.x},${ltsMy} ${TS_L.x},${TS_L.y}`);
   _setTxt(findText('metadata'), TS.x + 6, ltsMy);
 
-  // 6. TierState → Followers  (curve up)
+  // 6. TierState → Followers (curve up)
   const tsfx = Math.round((TS.x+F1.x)/2);
   const tsfy = Math.min(TS.y, F1.y) - 20;
-  _setPath('path-ts-f1', `M${TS.x},${TS.y} C${tsfx},${TS.y} ${F1.x},${tsfy} ${F1.x},${F1.y}`);
+  _setPath('path-ts-f1', `M${TS_F1.x},${TS_F1.y} C${tsfx},${TS.y} ${F1.x},${tsfy} ${F1_TS.x},${F1_TS.y}`);
 
-  // 7. RT Consumer → Leader  (straight fetch)
-  _setPath('path-fetch-rt', `M${RT.x},${RT.y} L${L.x},${L.y}`);
+  // 7. RT Consumer → Leader (straight)
+  _setPath('path-fetch-rt', `M${RT_L.x},${RT_L.y} L${L_RT.x},${L_RT.y}`);
   _setTxt(findText('fetch hotset'),
-    Math.round((RT.x+L.x)/2) - 22,
-    Math.round((RT.y+L.y)/2) + 14);
+    Math.round((RT_L.x+L_RT.x)/2) - 22,
+    Math.round((RT_L.y+L_RT.y)/2) + 14);
 
-  // 8. Hist Consumer → Remote  (arc historical fetch)
+  // 8. Hist Consumer → Remote (arc)
   const hmx = Math.round((HI.x+R.x)/2);
   const hmy = Math.max(HI.y, R.y) + 38;
-  _setPath('path-fetch-hist', `M${HI.x},${HI.y} C${hmx},${hmy} ${hmx},${hmy} ${R.x},${R.y}`);
+  _setPath('path-fetch-hist', `M${HI_R.x},${HI_R.y} C${hmx},${hmy} ${hmx},${hmy} ${R_HI.x},${R_HI.y}`);
   _setTxt(findText('fetch historical'), hmx - 40, hmy + 10);
 
-  // 9. Remote → Hist Consumer  (buffer response arc)
+  // 9. Remote → Hist Consumer (buffer arc)
   const bmx = Math.round((R.x+HI.x)/2);
   const bmy = Math.max(R.y, HI.y) + 60;
-  _setPath('path-buf', `M${R.x},${R.y} C${bmx},${bmy} ${bmx},${bmy} ${HI.x},${HI.y}`);
+  _setPath('path-buf', `M${R_HI2.x},${R_HI2.y} C${bmx},${bmy} ${bmx},${bmy} ${HI_R2.x},${HI_R2.y}`);
   _setTxt(findText('buffer'), bmx - 55, bmy + 10);
 }
 
