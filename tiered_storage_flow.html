@@ -868,24 +868,44 @@ function highlightStep(idx) {
 const container = document.getElementById('packetContainer');
 const canvas = document.getElementById('flowCanvas');
 
-// Path definitions: [x1,y1] → [x2,y2] segments
-const paths = {
-  write: [
-    { from: [105, 140], to: [255, 145], color: '#00d4ff', glow: true },
-    { from: [395, 120], to: [480, 100], color: '#4a7fa5', glow: false, delay: 0.4 },
-    { from: [395, 175], to: [480, 190], color: '#4a7fa5', glow: false, delay: 0.6 },
-  ],
-  tier: [
-    { from: [395, 155], to: [600, 245], color: '#ff9f1c', glow: true },
-    { from: [340, 170], to: [340, 265], color: '#ff9f1c', glow: false, delay: 0.5 },
-    { from: [440, 300], to: [520, 190], color: '#ff9f1c', glow: false, delay: 0.8 },
-  ],
-  fetch: [
-    { from: [105, 270], to: [335, 175], color: '#00ffb3', glow: true },
-    { from: [105, 330], to: [640, 265], color: '#c77dff', glow: true, curved: true, delay: 0.3 },
-    { from: [640, 265], to: [105, 340], color: '#c77dff', glow: false, delay: 0.8 },
-  ]
-};
+// Dynamic path definitions — reads live node positions at spawn time
+function getNodePx(boxId) {
+  const box = document.getElementById(boxId);
+  if (!box) return [0, 0];
+  const nd = box.closest('.node');
+  return [
+    (parseInt(nd.style.left) || 0) + nd.offsetWidth  / 2,
+    (parseInt(nd.style.top)  || 0) + nd.offsetHeight / 2
+  ];
+}
+function getPathsForMode(mode) {
+  const P  = getNodePx('node-producer');
+  const L  = getNodePx('node-leader');
+  const F1 = getNodePx('node-f1');
+  const F2 = getNodePx('node-f2');
+  const TS = getNodePx('node-tierstate');
+  const R  = getNodePx('node-remote');
+  const RT = getNodePx('node-rt');
+  const HI = getNodePx('node-hist');
+  const map = {
+    write: [
+      { from: P,  to: L,  color: '#00d4ff', glow: true },
+      { from: L,  to: F1, color: '#4a7fa5', glow: false, delay: 0.4 },
+      { from: L,  to: F2, color: '#4a7fa5', glow: false, delay: 0.6 },
+    ],
+    tier: [
+      { from: L,  to: R,  color: '#ff9f1c', glow: true },
+      { from: L,  to: TS, color: '#ff9f1c', glow: false, delay: 0.5 },
+      { from: TS, to: F1, color: '#ff9f1c', glow: false, delay: 0.8 },
+    ],
+    fetch: [
+      { from: RT, to: L,  color: '#00ffb3', glow: true },
+      { from: HI, to: R,  color: '#c77dff', glow: true,  delay: 0.3 },
+      { from: R,  to: HI, color: '#c77dff', glow: false, delay: 0.8 },
+    ]
+  };
+  return map[mode] || [];
+}
 
 let lastTime = 0;
 let spawnAccum = 0;
@@ -936,9 +956,9 @@ function startSpawning() {
   if (spawnInterval) clearInterval(spawnInterval);
   spawnInterval = setInterval(() => {
     if (!playing) return;
-    const modePaths = paths[currentMode];
+    const modePaths = getPathsForMode(currentMode); // live positions
     if (!modePaths) return;
-    modePaths.forEach((path, i) => {
+    modePaths.forEach((path) => {
       if (Math.random() < 0.7) {
         spawnPacket({ ...path });
       }
@@ -991,7 +1011,95 @@ document.addEventListener('click', e => {
   }
 });
 
-// ── Draggable nodes within canvas ──────────────────────────────
+// ── Helpers for dynamic arrows ──
+function getNodeCenter(boxId) {
+  const box = document.getElementById(boxId);
+  if (!box) return { x: 0, y: 0 };
+  const nodeDiv = box.closest('.node');
+  const canvas  = document.getElementById('flowCanvas');
+  const scaleX  = 1200 / canvas.offsetWidth;
+  const scaleY  = 380  / canvas.offsetHeight;
+  const nx = parseInt(nodeDiv.style.left) || 0;
+  const ny = parseInt(nodeDiv.style.top)  || 0;
+  return {
+    x: Math.round((nx + nodeDiv.offsetWidth  / 2) * scaleX),
+    y: Math.round((ny + nodeDiv.offsetHeight / 2) * scaleY)
+  };
+}
+function _setPath(id, d) {
+  const el = document.getElementById(id);
+  if (el) el.setAttribute('d', d);
+}
+function _setTxt(el, x, y) {
+  if (!el) return;
+  el.setAttribute('x', x); el.setAttribute('y', y);
+}
+function updateArrows() {
+  const svg    = document.getElementById('arrowSvg');
+  const canvas = document.getElementById('flowCanvas');
+  if (!svg || !canvas) return;
+
+  const P  = getNodeCenter('node-producer');
+  const L  = getNodeCenter('node-leader');
+  const F1 = getNodeCenter('node-f1');
+  const F2 = getNodeCenter('node-f2');
+  const TS = getNodeCenter('node-tierstate');
+  const R  = getNodeCenter('node-remote');
+  const RT = getNodeCenter('node-rt');
+  const HI = getNodeCenter('node-hist');
+
+  const allText = [...svg.querySelectorAll('text')];
+  const findText = kw => allText.find(t => t.textContent.includes(kw));
+
+  // 1. Producer → Leader  (straight write)
+  _setPath('path-prod-leader', `M${P.x},${P.y} L${L.x},${L.y}`);
+  _setTxt(findText('write'), Math.round((P.x+L.x)/2), Math.round((P.y+L.y)/2) - 6);
+
+  // 2. Leader → Follower1  (curve up)
+  const cp1x = Math.round((L.x+F1.x)/2);
+  const cp1y = Math.min(L.y, F1.y) - 30;
+  _setPath('path-rep1', `M${L.x},${L.y} C${cp1x},${cp1y} ${cp1x},${cp1y} ${F1.x},${F1.y}`);
+
+  // 3. Leader → Follower2  (curve down)
+  const cp2x = Math.round((L.x+F2.x)/2);
+  const cp2y = Math.max(L.y, F2.y) + 25;
+  _setPath('path-rep2', `M${L.x},${L.y} C${cp2x},${cp2y} ${cp2x},${cp2y} ${F2.x},${F2.y}`);
+
+  // 4. Leader → Remote  (S-curve upload)
+  const tmx = Math.round((L.x+R.x)/2);
+  _setPath('path-tier', `M${L.x},${L.y} C${tmx},${L.y} ${tmx},${R.y} ${R.x},${R.y}`);
+  _setTxt(findText('upload'), tmx, Math.round((L.y+R.y)/2) - 8);
+
+  // 5. Leader → TierState  (elbow curve)
+  const ltsMy = Math.round((L.y+TS.y)/2);
+  _setPath('path-meta', `M${L.x},${L.y} C${L.x},${ltsMy} ${TS.x},${ltsMy} ${TS.x},${TS.y}`);
+  _setTxt(findText('metadata'), TS.x + 6, ltsMy);
+
+  // 6. TierState → Followers  (curve up)
+  const tsfx = Math.round((TS.x+F1.x)/2);
+  const tsfy = Math.min(TS.y, F1.y) - 20;
+  _setPath('path-ts-f1', `M${TS.x},${TS.y} C${tsfx},${TS.y} ${F1.x},${tsfy} ${F1.x},${F1.y}`);
+
+  // 7. RT Consumer → Leader  (straight fetch)
+  _setPath('path-fetch-rt', `M${RT.x},${RT.y} L${L.x},${L.y}`);
+  _setTxt(findText('fetch hotset'),
+    Math.round((RT.x+L.x)/2) - 22,
+    Math.round((RT.y+L.y)/2) + 14);
+
+  // 8. Hist Consumer → Remote  (arc historical fetch)
+  const hmx = Math.round((HI.x+R.x)/2);
+  const hmy = Math.max(HI.y, R.y) + 38;
+  _setPath('path-fetch-hist', `M${HI.x},${HI.y} C${hmx},${hmy} ${hmx},${hmy} ${R.x},${R.y}`);
+  _setTxt(findText('fetch historical'), hmx - 40, hmy + 10);
+
+  // 9. Remote → Hist Consumer  (buffer response arc)
+  const bmx = Math.round((R.x+HI.x)/2);
+  const bmy = Math.max(R.y, HI.y) + 60;
+  _setPath('path-buf', `M${R.x},${R.y} C${bmx},${bmy} ${bmx},${bmy} ${HI.x},${HI.y}`);
+  _setTxt(findText('buffer'), bmx - 55, bmy + 10);
+}
+
+// ── Draggable nodes constrained within canvas ──
 (function initDrag(){
   const canvas = document.getElementById('flowCanvas');
   let dragging = null, startX = 0, startY = 0, startL = 0, startT = 0;
@@ -1003,10 +1111,8 @@ document.addEventListener('click', e => {
     dragging = node;
     node.classList.add('dragging');
     const isTouch = e.touches;
-    const cx = isTouch ? e.touches[0].clientX : e.clientX;
-    const cy = isTouch ? e.touches[0].clientY : e.clientY;
-    startX = cx;
-    startY = cy;
+    startX = isTouch ? e.touches[0].clientX : e.clientX;
+    startY = isTouch ? e.touches[0].clientY : e.clientY;
     startL = parseInt(node.style.left) || 0;
     startT = parseInt(node.style.top)  || 0;
   }
@@ -1017,19 +1123,9 @@ document.addEventListener('click', e => {
     const isTouch = e.touches;
     const cx = isTouch ? e.touches[0].clientX : e.clientX;
     const cy = isTouch ? e.touches[0].clientY : e.clientY;
-    const dx = cx - startX;
-    const dy = cy - startY;
-
-    const canvasW = canvas.offsetWidth;
-    const canvasH = canvas.offsetHeight;
-    const nodeW = dragging.offsetWidth;
-    const nodeH = dragging.offsetHeight;
-
-    const newL = Math.max(0, Math.min(canvasW - nodeW, startL + dx));
-    const newT = Math.max(0, Math.min(canvasH - nodeH, startT + dy));
-
-    dragging.style.left = newL + 'px';
-    dragging.style.top  = newT + 'px';
+    dragging.style.left = Math.max(0, Math.min(canvas.offsetWidth  - dragging.offsetWidth,  startL + cx - startX)) + 'px';
+    dragging.style.top  = Math.max(0, Math.min(canvas.offsetHeight - dragging.offsetHeight, startT + cy - startY)) + 'px';
+    updateArrows();
   }
 
   function onEnd() {
@@ -1038,11 +1134,9 @@ document.addEventListener('click', e => {
     dragging = null;
   }
 
-  // Mouse
   canvas.addEventListener('mousedown',  onStart);
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup',   onEnd);
-  // Touch
   canvas.addEventListener('touchstart', onStart, { passive: false });
   document.addEventListener('touchmove', onMove,  { passive: false });
   document.addEventListener('touchend',  onEnd);
