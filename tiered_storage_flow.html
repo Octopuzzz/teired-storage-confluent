@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confluent Tiered Storage — Animated Flow</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg0: #020817;
+    --bg1: #0a1628;
+    --bg2: #0f2040;
+    --cyan: #00d4ff;
+    --cyan2: #0099cc;
+    --green: #00ffb3;
+    --orange: #ff9f1c;
+    --red: #ff4d6d;
+    --purple: #c77dff;
+    --white: #e8f4fd;
+    --muted: #4a7fa5;
+    --glass: rgba(255,255,255,0.04);
+    --glass-border: rgba(255,255,255,0.10);
+    --glass-strong: rgba(0,212,255,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg0);
+    color: var(--white);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Background ── */
+  .bg-layer {
+    position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  }
+  .orb {
+    position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.18;
+    animation: orbFloat 12s ease-in-out infinite;
+  }
+  .orb1 { width: 600px; height: 600px; background: var(--cyan); top: -200px; left: -150px; animation-delay: 0s; }
+  .orb2 { width: 500px; height: 500px; background: var(--purple); top: 40%; right: -200px; animation-delay: -5s; }
+  .orb3 { width: 400px; height: 400px; background: var(--green); bottom: -100px; left: 30%; animation-delay: -9s; }
+  @keyframes orbFloat {
+    0%,100% { transform: translate(0,0) scale(1); }
+    50% { transform: translate(30px,-40px) scale(1.08); }
+  }
+
+  /* Grid lines */
+  .grid-overlay {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  /* ── Layout ── */
+  .wrapper { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 2rem; }
+
+  /* ── Header ── */
+  header {
+    text-align: center;
+    padding: 3rem 0 2rem;
+  }
+  .badge {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--cyan);
+    border: 1px solid rgba(0,212,255,0.3);
+    padding: 0.3rem 1rem;
+    border-radius: 999px;
+    background: rgba(0,212,255,0.07);
+    margin-bottom: 1.2rem;
+  }
+  h1 {
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.1;
+    background: linear-gradient(135deg, var(--white) 0%, var(--cyan) 60%, var(--purple) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.8rem;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Glass card ── */
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .glass-strong {
+    background: var(--glass-strong);
+    border: 1px solid rgba(0,212,255,0.18);
+  }
+
+  /* ── Flow Legend ── */
+  .legend {
+    display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap;
+    margin: 1.5rem 0;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.8rem; color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Main Flow Diagram ── */
+  .flow-section {
+    padding: 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .section-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  /* ── Flow SVG Canvas ── */
+  .flow-canvas {
+    width: 100%;
+    position: relative;
+    min-height: 420px;
+  }
+
+  /* ── Nodes ── */
+  .node {
+    position: absolute;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .node:hover { transform: translateY(-4px); }
+  .node:hover .node-box { border-color: var(--cyan); box-shadow: 0 0 30px rgba(0,212,255,0.3); }
+
+  .node-box {
+    width: 120px; height: 80px;
+    border-radius: 16px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0.35rem;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px);
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .node-box::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: inherit;
+    opacity: 0.1;
+    border-radius: inherit;
+  }
+  .node-icon { font-size: 1.6rem; line-height: 1; }
+  .node-label {
+    font-size: 0.7rem; font-weight: 600;
+    letter-spacing: 0.03em;
+    line-height: 1.2;
+  }
+  .node-sub {
+    font-size: 0.58rem; color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-top: 0.4rem;
+    text-align: center;
+  }
+
+  /* Node color variants */
+  .node-producer .node-box { background: rgba(0,212,255,0.12); border-color: rgba(0,212,255,0.3); }
+  .node-producer .node-label { color: var(--cyan); }
+
+  .node-leader .node-box { background: rgba(0,255,179,0.1); border-color: rgba(0,255,179,0.3); }
+  .node-leader .node-label { color: var(--green); }
+
+  .node-follower .node-box { background: rgba(74,127,165,0.15); border-color: rgba(74,127,165,0.3); }
+  .node-follower .node-label { color: var(--muted); }
+
+  .node-tierstate .node-box { background: rgba(255,159,28,0.1); border-color: rgba(255,159,28,0.3); }
+  .node-tierstate .node-label { color: var(--orange); }
+
+  .node-remote .node-box { background: rgba(255,159,28,0.08); border-color: rgba(255,159,28,0.25); }
+  .node-remote .node-label { color: var(--orange); }
+
+  .node-consumer-rt .node-box { background: rgba(0,255,179,0.1); border-color: rgba(0,255,179,0.3); }
+  .node-consumer-rt .node-label { color: var(--green); }
+
+  .node-consumer-hist .node-box { background: rgba(199,125,255,0.1); border-color: rgba(199,125,255,0.3); }
+  .node-consumer-hist .node-label { color: var(--purple); }
+
+  /* ── SVG Arrows ── */
+  .arrows-svg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── Animated Packets ── */
+  .packet {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0;
+  }
+
+  /* ── Info Panel ── */
+  .info-panel {
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    min-height: 140px;
+    transition: all 0.4s;
+    position: relative;
+  }
+  .info-panel-title {
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    color: var(--cyan);
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+  }
+  .info-panel-heading {
+    font-size: 1.2rem; font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  .info-panel-body {
+    font-size: 0.88rem; color: rgba(232,244,253,0.7);
+    line-height: 1.65;
+  }
+  .info-tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    margin-right: 0.4rem; margin-top: 0.5rem;
+  }
+
+  /* ── Steps ── */
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .step-card {
+    padding: 1.3rem;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .step-card::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-color);
+    transform: scaleX(0);
+    transition: transform 0.3s;
+  }
+  .step-card:hover::after, .step-card.active::after { transform: scaleX(1); }
+  .step-card.active {
+    background: rgba(0,212,255,0.08);
+    border-color: rgba(0,212,255,0.3) !important;
+  }
+  .step-number {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.8rem; font-weight: 700;
+    opacity: 0.25; line-height: 1;
+    margin-bottom: 0.5rem;
+  }
+  .step-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; }
+  .step-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+
+  /* ── Config ── */
+  .config-block {
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 2;
+  }
+  .config-comment { color: var(--muted); }
+  .config-key { color: var(--cyan); }
+  .config-val { color: var(--green); }
+  .config-highlight { color: var(--orange); }
+
+  /* ── Stats ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .stat-card {
+    padding: 1.5rem; border-radius: 16px; text-align: center;
+  }
+  .stat-num {
+    font-size: 2.2rem; font-weight: 800;
+    background: linear-gradient(135deg, var(--cyan), var(--green));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
+
+  /* ── Pulse ring on active node ── */
+  @keyframes pulseRing {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
+  .pulse-ring {
+    position: absolute; inset: -8px;
+    border-radius: 22px;
+    border: 2px solid var(--cyan);
+    animation: pulseRing 1.2s ease-out infinite;
+    pointer-events: none;
+  }
+
+  /* ── Tooltip ── */
+  .tooltip {
+    position: fixed;
+    background: rgba(10,22,40,0.95);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 0.8rem 1.1rem;
+    font-size: 0.78rem;
+    max-width: 220px;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.2s;
+    backdrop-filter: blur(20px);
+    line-height: 1.5;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip-title { font-weight: 700; color: var(--cyan); margin-bottom: 0.3rem; font-size: 0.82rem; }
+
+  /* ── Play controls ── */
+  .controls {
+    display: flex; align-items: center; justify-content: center;
+    gap: 1rem; margin-bottom: 2rem;
+  }
+  .btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    padding: 0.6rem 1.5rem;
+    border-radius: 999px;
+    border: 1px solid rgba(0,212,255,0.3);
+    background: rgba(0,212,255,0.08);
+    color: var(--cyan);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  .btn:hover { background: rgba(0,212,255,0.18); border-color: var(--cyan); }
+  .btn.active { background: var(--cyan); color: #000; }
+
+  .speed-label { font-size: 0.7rem; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  /* ── Site Nav ── */
+  .site-nav {
+    position: sticky; top: 0; z-index: 200;
+    background: rgba(2,8,23,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--glass-border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; height: 52px;
+  }
+  .site-nav-brand {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem; letter-spacing: 0.18em;
+    color: var(--cyan); display: flex; align-items: center; gap: 0.6rem;
+  }
+  .site-nav-brand::before { content: ''; width: 20px; height: 1px; background: var(--cyan); }
+  .site-nav-links { display: flex; gap: 0.4rem; }
+  .nav-pill {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem; letter-spacing: 0.08em;
+    padding: 0.35rem 1rem; border-radius: 999px;
+    border: 1px solid var(--glass-border);
+    background: transparent; color: var(--muted);
+    text-decoration: none; transition: all 0.2s;
+    cursor: pointer;
+  }
+  .nav-pill:hover { border-color: var(--cyan); color: var(--cyan); }
+  .nav-pill.active { background: var(--cyan); color: #000; border-color: var(--cyan); font-weight: 700; }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 2rem 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    border-top: 1px solid var(--glass-border);
+    margin-top: 2rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .stats-row { grid-template-columns: 1fr; }
+    .steps-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Site Nav -->
+<nav class="site-nav">
+  <div class="site-nav-brand">TIERED STORAGE DOCS</div>
+  <div class="site-nav-links">
+    <a href="index.html" class="nav-pill">🏠 Home</a>
+    <a href="tiered_storage_flow.html" class="nav-pill active">⚡ Flow Diagram</a>
+    <a href="tiered_storage_faq.html" class="nav-pill">❓ FAQ</a>
+  </div>
+</nav>
+
+<div class="bg-layer">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+</div>
+<div class="grid-overlay"></div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tooltip-title"></div>
+  <div id="tooltip-body"></div>
+</div>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="badge">CONFLUENT PLATFORM · ON-PREMISE</div>
+    <h1>Tiered Storage<br>Animated Flow</h1>
+    <p class="subtitle">Visualisasi real-time bagaimana data mengalir dari Producer → Kafka → Object Store</p>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card glass">
+      <div class="stat-num">~90%</div>
+      <div class="stat-label">Penghematan biaya storage historis</div>
+    </div>
+    <div class="stat-card glass">
+      <div class="stat-num">∞</div>
+      <div class="stat-label">Retention data di remote object store</div>
+    </div>
+    <div class="stat-card glass">
+      <div class="stat-num">0ms</div>
+      <div class="stat-label">Blocking pada real-time consumer thread</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn active" id="btn-play" onclick="togglePlay()">⏸ Pause</button>
+    <button class="btn" id="btn-write" onclick="setMode('write')">Write Flow</button>
+    <button class="btn" id="btn-tier" onclick="setMode('tier')">Tiering Flow</button>
+    <button class="btn" id="btn-fetch" onclick="setMode('fetch')">Fetch Flow</button>
+    <span class="speed-label">Speed:</span>
+    <button class="btn" onclick="setSpeed(0.5)">0.5×</button>
+    <button class="btn" onclick="setSpeed(1)">1×</button>
+    <button class="btn" onclick="setSpeed(2)">2×</button>
+  </div>
+
+  <!-- Flow Diagram -->
+  <div class="flow-section glass" style="min-height:460px;">
+    <div class="section-title">// ARCHITECTURE FLOW DIAGRAM — hover node untuk detail</div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div> Write path</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Tier path</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Fetch hotset</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div> Fetch historical</div>
+    </div>
+
+    <div class="flow-canvas" id="flowCanvas" style="height:380px; position:relative;">
+      <!-- SVG for arrows -->
+      <svg class="arrows-svg" id="arrowSvg" viewBox="0 0 1200 380" preserveAspectRatio="none">
+        <defs>
+          <marker id="arrow-cyan" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="rgba(0,212,255,0.6)"/>
+          </marker>
+          <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="rgba(0,255,179,0.6)"/>
+          </marker>
+          <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="rgba(255,159,28,0.6)"/>
+          </marker>
+          <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="rgba(199,125,255,0.6)"/>
+          </marker>
+          <marker id="arrow-muted" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="rgba(74,127,165,0.6)"/>
+          </marker>
+          <filter id="glow-cyan">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow-orange">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Write: Producer → Leader -->
+        <path id="path-prod-leader" d="M165,145 L280,145" stroke="rgba(0,212,255,0.4)" stroke-width="1.5" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-cyan)"/>
+        <text x="215" y="135" fill="rgba(0,212,255,0.5)" font-size="9" font-family="Space Mono" text-anchor="middle">write</text>
+
+        <!-- Replication: Leader → Follower1 -->
+        <path id="path-rep1" d="M395,130 C440,120 480,100 520,105" stroke="rgba(74,127,165,0.4)" stroke-width="1.5" stroke-dasharray="5,4" fill="none" marker-end="url(#arrow-muted)"/>
+
+        <!-- Replication: Leader → Follower2 -->
+        <path id="path-rep2" d="M395,175 C440,185 480,195 520,190" stroke="rgba(74,127,165,0.4)" stroke-width="1.5" stroke-dasharray="5,4" fill="none" marker-end="url(#arrow-muted)"/>
+
+        <!-- Tier: Leader → RemoteStore -->
+        <path id="path-tier" d="M395,155 C480,155 560,230 640,240" stroke="rgba(255,159,28,0.45)" stroke-width="1.5" stroke-dasharray="6,4" fill="none" marker-end="url(#arrow-orange)"/>
+        <text x="510" y="185" fill="rgba(255,159,28,0.5)" font-size="9" font-family="Space Mono" text-anchor="middle">upload segment</text>
+
+        <!-- Metadata: Leader → TierState -->
+        <path id="path-meta" d="M340,215 L340,275" stroke="rgba(255,159,28,0.4)" stroke-width="1.5" stroke-dasharray="5,4" fill="none" marker-end="url(#arrow-orange)"/>
+        <text x="355" y="255" fill="rgba(255,159,28,0.45)" font-size="9" font-family="Space Mono">metadata</text>
+
+        <!-- TierState → Followers -->
+        <path id="path-ts-f1" d="M440,300 C490,290 510,195 520,160" stroke="rgba(255,159,28,0.3)" stroke-width="1.2" stroke-dasharray="4,4" fill="none" marker-end="url(#arrow-orange)"/>
+
+        <!-- Fetch RT: Consumer RT → Leader -->
+        <path id="path-fetch-rt" d="M165,270 L280,180" stroke="rgba(0,255,179,0.4)" stroke-width="1.5" stroke-dasharray="5,4" fill="none" marker-end="url(#arrow-green)"/>
+        <text x="195" y="250" fill="rgba(0,255,179,0.45)" font-size="9" font-family="Space Mono">fetch hotset</text>
+
+        <!-- Fetch Historical: Consumer Hist → Leader → RemoteStore -->
+        <path id="path-fetch-hist" d="M165,330 C220,330 260,240 340,230 C420,220 530,250 640,255" stroke="rgba(199,125,255,0.4)" stroke-width="1.5" stroke-dasharray="5,4" fill="none" marker-end="url(#arrow-purple)"/>
+        <text x="280" y="345" fill="rgba(199,125,255,0.45)" font-size="9" font-family="Space Mono">fetch historical</text>
+
+        <!-- RemoteStore label area -->
+        <text x="680" y="225" fill="rgba(255,159,28,0.3)" font-size="9" font-family="Space Mono" text-anchor="middle">MinIO / Ceph</text>
+
+        <!-- Buffer arrow from remote to hist consumer -->
+        <path id="path-buf" d="M640,265 C580,280 420,310 200,340" stroke="rgba(199,125,255,0.3)" stroke-width="1.2" stroke-dasharray="4,4" fill="none" marker-end="url(#arrow-purple)"/>
+        <text x="430" y="315" fill="rgba(199,125,255,0.35)" font-size="8" font-family="Space Mono">in-memory buffer → response</text>
+      </svg>
+
+      <!-- Nodes (positioned absolutely) -->
+
+      <!-- Producer -->
+      <div class="node node-producer" style="left:45px; top:100px;"
+           onmouseenter="showTip(event,'Producer','Mengirim events ke Leader replica. Tidak aware bahwa topic menggunakan Tiered Storage — prosesnya 100% transparan.')"
+           onmouseleave="hideTip()">
+        <div class="node-box" id="node-producer">
+          <div class="node-icon">🏭</div>
+          <div class="node-label">Producer</div>
+        </div>
+        <div class="node-sub">Transparent</div>
+      </div>
+
+      <!-- Leader -->
+      <div class="node node-leader" style="left:255px; top:90px;"
+           onmouseenter="showTip(event,'Leader Replica','Menerima writes, mereplikasi ke follower, dan bertanggung jawab meng-upload rolled segments ke remote object store.')"
+           onmouseleave="hideTip()">
+        <div class="node-box" id="node-leader">
+          <div class="node-icon">👑</div>
+          <div class="node-label">Leader<br>Replica</div>
+        </div>
+        <div class="node-sub">Partition Leader</div>
+      </div>
+
+      <!-- Follower 1 -->
+      <div class="node node-follower" style="left:480px; top:55px;"
+           onmouseenter="showTip(event,'Follower 1','Mereplikasi data dari leader. Juga fetch metadata dari _confluent-tier-state untuk membangun in-memory map remote segments.')"
+           onmouseleave="hideTip()">
+        <div class="node-box" id="node-f1">
+          <div class="node-icon">🔁</div>
+          <div class="node-label">Follower 1</div>
+        </div>
+        <div class="node-sub">Replica</div>
+      </div>
+
+      <!-- Follower 2 -->
+      <div class="node node-follower" style="left:480px; top:155px;"
+           onmouseenter="showTip(event,'Follower 2','Identik dengan Follower 1. Bersama-sama memastikan fault tolerance dan high availability.')"
+           onmouseleave="hideTip()">
+        <div class="node-box" id="node-f2">
+          <div class="node-icon">🔁</div>
+          <div class="node-label">Follower 2</div>
+        </div>
+        <div class="node-sub">Replica</div>
+      </div>
+
+      <!-- Tier State -->
+      <div class="node node-tierstate" style="left:255px; top:255px;"
+           onmouseenter="showTip(event,'_confluent-tier-state','Internal Kafka topic. Leader menulis referensi lokasi segment di object store ke sini. Follower membaca untuk sinkronisasi metadata.')"
+           onmouseleave="hideTip()">
+        <div class="node-box" id="node-tierstate">
+          <div class="node-icon">📋</div>
+          <div class="node-label">_confluent<br>-tier-state</div>
+        </div>
+        <div class="node-sub">Internal Topic</div>
+      </div>
+
+      <!-- Remote Object Store -->
+      <div class="node node-remote" style="left:600px; top:195px;"
+           onmouseenter="showTip(event,'Remote Object Store','MinIO, Ceph, Dell ECS, atau Pure FlashBlade untuk on-premise. Menyimpan rolled segment files. Retention praktis unlimited.')"
+           onmouseleave="hideTip()">
+        <div class="node-box" id="node-remote" style="width:140px; height:90px;">
+          <div class="node-icon">🗄️</div>
+          <div class="node-label">Object Store<br><span style="font-size:0.58rem;color:var(--muted)">MinIO / Ceph</span></div>
+        </div>
+        <div class="node-sub">Remote Tier (Cold)</div>
+      </div>
+
+      <!-- Consumer RT -->
+      <div class="node node-consumer-rt" style="left:45px; top:225px;"
+           onmouseenter="showTip(event,'RT Consumer','Membaca data dari hotset (local). Data kemungkinan besar ada di page cache RAM — sangat cepat, network thread tidak terblokir.')"
+           onmouseleave="hideTip()">
+        <div class="node-box" id="node-rt">
+          <div class="node-icon">⚡</div>
+          <div class="node-label">RT Consumer</div>
+        </div>
+        <div class="node-sub">Hotset read</div>
+      </div>
+
+      <!-- Consumer Historical -->
+      <div class="node node-consumer-hist" style="left:45px; top:295px;"
+           onmouseenter="showTip(event,'Historical Consumer','Membaca data lama dari remote object store via separate thread → in-memory buffer. Tidak memblokir RT consumer sama sekali.')"
+           onmouseleave="hideTip()">
+        <div class="node-box" id="node-hist">
+          <div class="node-icon">🔍</div>
+          <div class="node-label">Hist Consumer</div>
+        </div>
+        <div class="node-sub">Remote read</div>
+      </div>
+
+      <!-- Packet container -->
+      <div id="packetContainer" style="position:absolute;inset:0;pointer-events:none;"></div>
+    </div>
+  </div>
+
+  <!-- Info Panel -->
+  <div class="info-panel glass" id="infoPanel">
+    <div class="info-panel-title">// ACTIVE FLOW INFO</div>
+    <div class="info-panel-heading" id="infoPanelHeading">Write Flow — Producer ke Leader</div>
+    <div class="info-panel-body" id="infoPanelBody">
+      Producer mengirim events ke Leader Replica menggunakan Kafka Producer API biasa. Producer tidak perlu dikonfigurasi khusus — tiered storage sepenuhnya transparan. Follower replicas menarik data dari leader untuk replikasi.
+    </div>
+    <div id="infoPanelTags"></div>
+  </div>
+
+  <!-- Step Cards -->
+  <div class="section-title" style="margin-bottom:1rem;">// TIERING PROCESS — 5 LANGKAH</div>
+  <div class="steps-grid" id="stepsGrid">
+    <div class="step-card glass" style="--accent-color:var(--green); border-color: rgba(0,255,179,0.15);" onclick="highlightStep(0)">
+      <div class="step-number" style="color:var(--green)">01</div>
+      <div class="step-title" style="color:var(--green)">Segment Roll & Flush</div>
+      <div class="step-desc">Active segment penuh/expired → di-roll (ditutup) dan di-flush ke disk. Kini eligible untuk tiering.</div>
+    </div>
+    <div class="step-card glass" style="--accent-color:var(--cyan); border-color: rgba(0,212,255,0.15);" onclick="highlightStep(1)">
+      <div class="step-number" style="color:var(--cyan)">02</div>
+      <div class="step-title" style="color:var(--cyan)">Leader Upload Segment</div>
+      <div class="step-desc">Partition leader upload segment file ke remote object store (MinIO/Ceph) via storage plugin API.</div>
+    </div>
+    <div class="step-card glass" style="--accent-color:var(--orange); border-color: rgba(255,159,28,0.15);" onclick="highlightStep(2)">
+      <div class="step-number" style="color:var(--orange)">03</div>
+      <div class="step-title" style="color:var(--orange)">Tulis Metadata</div>
+      <div class="step-desc">Leader mencatat referensi lokasi object di remote ke internal topic _confluent-tier-state.</div>
+    </div>
+    <div class="step-card glass" style="--accent-color:var(--muted); border-color: rgba(74,127,165,0.15);" onclick="highlightStep(3)">
+      <div class="step-number" style="color:var(--muted)">04</div>
+      <div class="step-title" style="color:var(--muted)">Follower Sync Metadata</div>
+      <div class="step-desc">Follower fetch metadata dari _confluent-tier-state dan update in-memory map mereka.</div>
+    </div>
+    <div class="step-card glass" style="--accent-color:var(--red); border-color: rgba(255,77,109,0.15);" onclick="highlightStep(4)">
+      <div class="step-number" style="color:var(--red)">05</div>
+      <div class="step-title" style="color:var(--red)">Hapus Local Segment</div>
+      <div class="step-desc">Setelah hotset.ms expired, segment lokal dihapus. Data tetap aman di remote object store.</div>
+    </div>
+  </div>
+
+  <!-- Config -->
+  <div class="section-title" style="margin-bottom:1rem;">// KONFIGURASI ON-PREMISE (server.properties)</div>
+  <div class="config-block glass">
+    <div><span class="config-comment"># Enable Tiered Storage</span></div>
+    <div><span class="config-key">confluent.tier.enable</span>=<span class="config-val">true</span></div>
+    <div>&nbsp;</div>
+    <div><span class="config-comment"># Backend: S3-compatible (MinIO pakai ini)</span></div>
+    <div><span class="config-key">confluent.tier.backend</span>=<span class="config-val">S3</span></div>
+    <div><span class="config-key">confluent.tier.s3.bucket</span>=<span class="config-val">kafka-tiered-storage</span></div>
+    <div><span class="config-key">confluent.tier.s3.region</span>=<span class="config-val">us-east-1</span></div>
+    <div>&nbsp;</div>
+    <div><span class="config-comment"># Override endpoint ke MinIO on-prem</span></div>
+    <div><span class="config-key">confluent.tier.s3.endpoint.override</span>=<span class="config-highlight">http://minio.internal:9000</span></div>
+    <div>&nbsp;</div>
+    <div><span class="config-comment"># Berapa lama data tetap di local (hotset)</span></div>
+    <div><span class="config-key">confluent.tier.local.hotset.ms</span>=<span class="config-val">3600000</span> <span class="config-comment"># 1 jam</span></div>
+    <div>&nbsp;</div>
+    <div><span class="config-comment"># Per-topic: aktifkan tiering</span></div>
+    <div><span class="config-key">confluent.tier.enable</span>=<span class="config-val">true</span> <span class="config-comment"># di topic config</span></div>
+    <div><span class="config-key">segment.bytes</span>=<span class="config-val">536870912</span> <span class="config-comment"># 512MB per segment</span></div>
+  </div>
+
+</div>
+
+<footer>
+  CONFLUENT TIERED STORAGE · KIP-405 · ON-PREMISE READY · MINIO / CEPH / ECS / PURE FLASHBLADE
+</footer>
+
+<script>
+// ── State ──
+let playing = true;
+let speed = 1;
+let currentMode = 'write';
+let animationFrames = [];
+let activePackets = [];
+
+// ── Node info data ──
+const modeInfo = {
+  write: {
+    heading: 'Write Flow — Producer ke Leader Replica',
+    body: 'Producer mengirim events ke Leader Replica menggunakan Kafka Producer API standar. Tidak ada perubahan konfigurasi apapun di sisi producer. Follower replicas menarik data dari leader secara otomatis untuk menjaga replikasi. Active segment tidak pernah di-tier — hanya rolled (closed) segments yang eligible.',
+    tags: [
+      { text: 'producer.send()', color: 'var(--cyan)' },
+      { text: 'ISR Replication', color: 'var(--muted)' },
+      { text: 'Active Segment → Never Tiered', color: 'var(--green)' }
+    ]
+  },
+  tier: {
+    heading: 'Tiering Flow — Segment Upload ke Object Store',
+    body: 'Saat segment aktif di-roll (ditutup), partition leader mengupload segment ke remote object store via S3-compatible API (MinIO/Ceph). Leader lalu menulis metadata referensi ke internal topic _confluent-tier-state. Followers membaca metadata ini dan memperbarui in-memory map mereka. Setelah hotset.ms expired, segment lokal dihapus dari disk broker.',
+    tags: [
+      { text: 'Segment Roll', color: 'var(--green)' },
+      { text: 'MinIO / Ceph Upload', color: 'var(--orange)' },
+      { text: '_confluent-tier-state', color: 'var(--orange)' },
+      { text: 'hotset.ms', color: 'var(--red)' }
+    ]
+  },
+  fetch: {
+    heading: 'Fetch Flow — Hotset vs Historical Data',
+    body: 'Broker menentukan dari mana fetch berdasarkan logical view. Jika offset ada di local hotset → data diambil dari page cache (cepat, non-blocking). Jika offset ada di remote → separate thread streaming data dari object store ke in-memory buffer, lalu dikirim ke consumer. RT consumer tidak pernah terblokir oleh historical reads.',
+    tags: [
+      { text: 'Page Cache (RT path)', color: 'var(--green)' },
+      { text: 'Separate Thread (hist path)', color: 'var(--purple)' },
+      { text: 'In-Memory Buffer', color: 'var(--purple)' },
+      { text: 'Zero Blocking', color: 'var(--cyan)' }
+    ]
+  }
+};
+
+// ── Tooltip ──
+const tooltip = document.getElementById('tooltip');
+function showTip(e, title, body) {
+  document.getElementById('tooltip-title').textContent = title;
+  document.getElementById('tooltip-body').textContent = body;
+  tooltip.classList.add('show');
+  moveTip(e);
+}
+function hideTip() { tooltip.classList.remove('show'); }
+document.addEventListener('mousemove', e => {
+  if (tooltip.classList.contains('show')) moveTip(e);
+});
+function moveTip(e) {
+  const x = Math.min(e.clientX + 14, window.innerWidth - 240);
+  const y = Math.min(e.clientY + 14, window.innerHeight - 120);
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+
+// ── Mode switching ──
+function setMode(mode) {
+  currentMode = mode;
+  clearPackets();
+  updateInfoPanel();
+  document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+  if (mode === 'write') document.getElementById('btn-write').classList.add('active');
+  if (mode === 'tier') document.getElementById('btn-tier').classList.add('active');
+  if (mode === 'fetch') document.getElementById('btn-fetch').classList.add('active');
+}
+
+function updateInfoPanel() {
+  const info = modeInfo[currentMode];
+  document.getElementById('infoPanelHeading').textContent = info.heading;
+  document.getElementById('infoPanelBody').textContent = info.body;
+  const tagsEl = document.getElementById('infoPanelTags');
+  tagsEl.innerHTML = info.tags.map(t =>
+    `<span class="info-tag" style="background:${t.color}22; border:1px solid ${t.color}55; color:${t.color};">${t.text}</span>`
+  ).join('');
+}
+
+// ── Play / Pause ──
+function togglePlay() {
+  playing = !playing;
+  const btn = document.getElementById('btn-play');
+  btn.textContent = playing ? '⏸ Pause' : '▶ Play';
+  btn.classList.toggle('active', playing);
+}
+
+// ── Speed ──
+function setSpeed(s) { speed = s; }
+
+// ── Step highlight ──
+function highlightStep(idx) {
+  document.querySelectorAll('.step-card').forEach((c, i) => {
+    c.classList.toggle('active', i === idx);
+  });
+  setMode('tier');
+}
+
+// ── Packet animation system ──
+const container = document.getElementById('packetContainer');
+const canvas = document.getElementById('flowCanvas');
+
+// Path definitions: [x1,y1] → [x2,y2] segments
+const paths = {
+  write: [
+    { from: [105, 140], to: [255, 145], color: '#00d4ff', glow: true },
+    { from: [395, 120], to: [480, 100], color: '#4a7fa5', glow: false, delay: 0.4 },
+    { from: [395, 175], to: [480, 190], color: '#4a7fa5', glow: false, delay: 0.6 },
+  ],
+  tier: [
+    { from: [395, 155], to: [600, 245], color: '#ff9f1c', glow: true },
+    { from: [340, 170], to: [340, 265], color: '#ff9f1c', glow: false, delay: 0.5 },
+    { from: [440, 300], to: [520, 190], color: '#ff9f1c', glow: false, delay: 0.8 },
+  ],
+  fetch: [
+    { from: [105, 270], to: [335, 175], color: '#00ffb3', glow: true },
+    { from: [105, 330], to: [640, 265], color: '#c77dff', glow: true, curved: true, delay: 0.3 },
+    { from: [640, 265], to: [105, 340], color: '#c77dff', glow: false, delay: 0.8 },
+  ]
+};
+
+let lastTime = 0;
+let spawnAccum = 0;
+
+function spawnPacket(path) {
+  const p = document.createElement('div');
+  p.className = 'packet';
+  p.style.background = path.color;
+  p.style.boxShadow = path.glow ? `0 0 10px ${path.color}, 0 0 20px ${path.color}88` : `0 0 6px ${path.color}88`;
+  p.style.opacity = '0';
+  container.appendChild(p);
+
+  const from = path.from;
+  const to = path.to;
+  const delay = (path.delay || 0) * 1000 / speed;
+  const dur = (900 + Math.random() * 400) / speed;
+
+  setTimeout(() => {
+    if (!container.contains(p)) return;
+    p.style.opacity = '1';
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min((now - start) / dur, 1);
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      const x = from[0] + (to[0] - from[0]) * ease - 5;
+      const y = from[1] + (to[1] - from[1]) * ease - 5;
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      if (t < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        p.style.opacity = '0';
+        setTimeout(() => p.remove(), 300);
+      }
+    }
+    requestAnimationFrame(tick);
+  }, delay);
+
+  return p;
+}
+
+function clearPackets() {
+  container.innerHTML = '';
+}
+
+let spawnInterval = null;
+function startSpawning() {
+  if (spawnInterval) clearInterval(spawnInterval);
+  spawnInterval = setInterval(() => {
+    if (!playing) return;
+    const modePaths = paths[currentMode];
+    if (!modePaths) return;
+    modePaths.forEach((path, i) => {
+      if (Math.random() < 0.7) {
+        spawnPacket({ ...path });
+      }
+    });
+  }, 400);
+}
+
+// ── Pulse active nodes based on mode ──
+function updateNodePulse() {
+  document.querySelectorAll('.pulse-ring').forEach(r => r.remove());
+  const modeNodes = {
+    write: ['node-producer', 'node-leader', 'node-f1', 'node-f2'],
+    tier: ['node-leader', 'node-remote', 'node-tierstate', 'node-f1', 'node-f2'],
+    fetch: ['node-rt', 'node-hist', 'node-leader', 'node-remote']
+  };
+  const active = modeNodes[currentMode] || [];
+  active.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      const ring = document.createElement('div');
+      ring.className = 'pulse-ring';
+      ring.style.animationDelay = Math.random() * 0.8 + 's';
+      el.style.position = 'relative';
+      el.appendChild(ring);
+    }
+  });
+}
+
+// Init
+updateInfoPanel();
+startSpawning();
+updateNodePulse();
+
+// Watch mode change to update pulses
+const modeObserver = setInterval(updateNodePulse, 2000);
+
+// Default show write mode active
+document.getElementById('btn-write').classList.add('active');
+</script>
+</body>
+</html>

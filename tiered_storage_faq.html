@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiered Storage — Segment FAQ</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Fraunces:ital,wght@0,300;0,700;0,900;1,300&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0e14;
+  --bg1:#12151f;
+  --bg2:#181c2a;
+  --bg3:#1f2438;
+  --ink:#e2e8f7;
+  --dim:#6b7a99;
+  --cyan:#38bdf8;
+  --green:#4ade80;
+  --amber:#fcd34d;
+  --rose:#f87171;
+  --violet:#c084fc;
+  --orange:#fb923c;
+  --border:rgba(255,255,255,0.06);
+  --mono:'JetBrains Mono',monospace;
+  --serif:'Fraunces',serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--ink);font-family:var(--serif);font-size:16px;line-height:1.6;overflow-x:hidden;}
+
+/* ─── NOISE ─── */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity:0.5;}
+
+/* ─── HEADER ─── */
+header{
+  position:sticky;top:0;z-index:100;
+  background:rgba(12,14,20,0.92);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:0 2rem;
+  display:flex;align-items:center;justify-content:space-between;
+  height:56px;
+}
+.header-brand{
+  font-family:var(--mono);font-size:0.65rem;letter-spacing:0.2em;
+  color:var(--cyan);display:flex;align-items:center;gap:0.6rem;
+}
+.header-brand::before{content:'';width:24px;height:1px;background:var(--cyan);}
+.search-wrap{
+  position:relative;flex:1;max-width:360px;margin:0 2rem;
+}
+.search-wrap input{
+  width:100%;background:var(--bg2);border:1px solid var(--border);
+  border-radius:999px;padding:0.45rem 1rem 0.45rem 2.5rem;
+  font-family:var(--mono);font-size:0.72rem;color:var(--ink);
+  outline:none;transition:border-color 0.2s;
+}
+.search-wrap input::placeholder{color:var(--dim);}
+.search-wrap input:focus{border-color:rgba(56,189,248,0.4);}
+.search-icon{position:absolute;left:0.85rem;top:50%;transform:translateY(-50%);color:var(--dim);font-size:0.75rem;}
+.header-count{
+  font-family:var(--mono);font-size:0.65rem;color:var(--dim);
+  white-space:nowrap;
+}
+
+/* ─── HERO ─── */
+.hero{
+  padding:5rem 2rem 3rem;
+  max-width:860px;margin:0 auto;text-align:center;
+}
+.hero-label{
+  display:inline-block;font-family:var(--mono);font-size:0.62rem;
+  letter-spacing:0.2em;color:var(--cyan);
+  border:1px solid rgba(56,189,248,0.25);border-radius:999px;
+  padding:0.3rem 1rem;margin-bottom:1.5rem;
+}
+.hero h1{
+  font-size:clamp(2.4rem,5vw,4rem);font-weight:900;
+  line-height:1.08;margin-bottom:1rem;
+  font-style:italic;
+}
+.hero h1 em{font-style:normal;color:var(--cyan);}
+.hero p{font-size:1rem;color:var(--dim);max-width:520px;margin:0 auto 2rem;font-weight:300;font-style:italic;}
+
+/* ─── FILTER PILLS ─── */
+.filters{
+  display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;
+  padding:0 2rem 2.5rem;
+}
+.pill{
+  font-family:var(--mono);font-size:0.65rem;letter-spacing:0.06em;
+  padding:0.4rem 1rem;border-radius:999px;
+  border:1px solid var(--border);background:transparent;color:var(--dim);
+  cursor:pointer;transition:all 0.2s;
+}
+.pill:hover{border-color:var(--cyan);color:var(--cyan);}
+.pill.active{background:var(--cyan);color:#000;border-color:var(--cyan);font-weight:700;}
+
+/* ─── MAIN LAYOUT ─── */
+.container{max-width:900px;margin:0 auto;padding:0 2rem 6rem;}
+
+/* ─── SECTION HEADER ─── */
+.section-header{
+  display:flex;align-items:baseline;gap:1rem;
+  margin:3rem 0 1.2rem;padding-bottom:0.8rem;
+  border-bottom:1px solid var(--border);
+}
+.section-letter{
+  font-size:3rem;font-weight:900;line-height:1;
+  color:transparent;-webkit-text-stroke:1px rgba(56,189,248,0.3);
+  font-style:italic;
+}
+.section-title-wrap{}
+.section-name{font-size:1.1rem;font-weight:700;}
+.section-sub{font-family:var(--mono);font-size:0.65rem;color:var(--dim);letter-spacing:0.08em;}
+
+/* ─── FAQ CARD ─── */
+.faq-card{
+  background:var(--bg1);
+  border:1px solid var(--border);
+  border-radius:16px;
+  margin-bottom:0.75rem;
+  overflow:hidden;
+  transition:border-color 0.2s;
+}
+.faq-card:hover{border-color:rgba(255,255,255,0.1);}
+.faq-card.open{border-color:rgba(56,189,248,0.2);}
+
+.faq-q{
+  padding:1.2rem 1.5rem;
+  cursor:pointer;
+  display:flex;align-items:flex-start;gap:1rem;
+  user-select:none;
+}
+.faq-q-num{
+  font-family:var(--mono);font-size:0.62rem;
+  color:var(--dim);flex-shrink:0;padding-top:0.15rem;
+  min-width:32px;
+}
+.faq-q-text{
+  flex:1;font-size:0.92rem;font-weight:700;line-height:1.4;
+}
+.faq-q-tags{display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.4rem;}
+.faq-tag{
+  font-family:var(--mono);font-size:0.58rem;
+  padding:0.15rem 0.5rem;border-radius:999px;
+  border:1px solid;white-space:nowrap;
+}
+.faq-chevron{
+  flex-shrink:0;color:var(--dim);font-size:0.75rem;
+  transition:transform 0.3s;padding-top:0.1rem;
+}
+.faq-card.open .faq-chevron{transform:rotate(180deg);color:var(--cyan);}
+
+.faq-a{
+  display:none;
+  padding:0 1.5rem 1.5rem 3.1rem;
+}
+.faq-card.open .faq-a{display:block;animation:slideDown 0.25s ease;}
+@keyframes slideDown{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+
+/* Answer content styles */
+.a-text{
+  font-size:0.88rem;color:rgba(226,232,247,0.8);line-height:1.75;
+  margin-bottom:1rem;font-weight:300;
+}
+.a-text strong{color:var(--ink);font-weight:700;}
+.a-text em{color:var(--cyan);font-style:normal;}
+
+.a-block{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;margin:0.8rem 0;overflow:hidden;
+}
+.a-block-label{
+  font-family:var(--mono);font-size:0.6rem;letter-spacing:0.15em;
+  padding:0.5rem 1rem;background:var(--bg3);
+  color:var(--dim);border-bottom:1px solid var(--border);
+}
+.a-block-body{padding:1rem;}
+
+/* Code/mono block */
+.code{
+  background:rgba(0,0,0,0.4);border-radius:10px;
+  padding:0.9rem 1.1rem;margin:0.7rem 0;
+  font-family:var(--mono);font-size:0.72rem;line-height:1.8;
+  overflow-x:auto;border:1px solid rgba(255,255,255,0.04);
+}
+.ck{color:var(--cyan);}   /* key */
+.cv{color:var(--green);}  /* value */
+.cc{color:var(--dim);}    /* comment */
+.ca{color:var(--amber);}  /* alert / highlight */
+.cr{color:var(--rose);}   /* error / warning */
+.co{color:var(--orange);} /* object/path */
+
+/* Tree diagram */
+.tree{
+  font-family:var(--mono);font-size:0.72rem;line-height:1.9;
+  color:var(--dim);padding:0.5rem 0;
+}
+.tree .tr{color:var(--ink);}
+.tree .td{color:var(--dim);}
+.tree .tk{color:var(--cyan);}
+.tree .tv{color:var(--green);}
+.tree .ta{color:var(--amber);}
+.tree .te{color:var(--rose);}
+
+/* Flow steps inline */
+.flow-steps{
+  display:flex;flex-direction:column;gap:0.5rem;margin:0.8rem 0;
+}
+.flow-step{
+  display:flex;align-items:flex-start;gap:0.8rem;
+  background:var(--bg3);border-radius:10px;padding:0.75rem 1rem;
+  font-size:0.82rem;
+}
+.flow-step-num{
+  flex-shrink:0;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:0.62rem;font-weight:700;
+  background:rgba(56,189,248,0.15);color:var(--cyan);margin-top:1px;
+}
+.flow-step-body{}
+.flow-step-title{font-weight:700;margin-bottom:0.2rem;font-size:0.82rem;}
+.flow-step-desc{color:var(--dim);font-size:0.78rem;line-height:1.5;}
+
+/* Comparison table */
+.cmp-table{width:100%;border-collapse:collapse;font-size:0.78rem;margin:0.7rem 0;}
+.cmp-table th{
+  font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;
+  padding:0.6rem 0.9rem;background:var(--bg3);color:var(--dim);
+  text-align:left;border-bottom:1px solid var(--border);
+}
+.cmp-table td{padding:0.6rem 0.9rem;border-bottom:1px solid rgba(255,255,255,0.03);vertical-align:top;}
+.cmp-table tr:last-child td{border-bottom:none;}
+.cmp-table tr:hover td{background:rgba(255,255,255,0.01);}
+
+/* Alert box */
+.alert{
+  border-radius:10px;padding:0.8rem 1rem;margin:0.7rem 0;
+  font-size:0.82rem;line-height:1.5;
+  display:flex;gap:0.6rem;align-items:flex-start;
+}
+.alert-warn{background:rgba(252,211,77,0.07);border:1px solid rgba(252,211,77,0.2);color:var(--amber);}
+.alert-danger{background:rgba(248,113,113,0.07);border:1px solid rgba(248,113,113,0.2);color:var(--rose);}
+.alert-ok{background:rgba(74,222,128,0.07);border:1px solid rgba(74,222,128,0.2);color:var(--green);}
+.alert-info{background:rgba(56,189,248,0.07);border:1px solid rgba(56,189,248,0.2);color:var(--cyan);}
+.alert-icon{flex-shrink:0;font-size:0.9rem;}
+
+/* Scenario box */
+.scenario{
+  background:linear-gradient(135deg,rgba(56,189,248,0.04),rgba(192,132,252,0.04));
+  border:1px solid rgba(56,189,248,0.15);
+  border-radius:12px;padding:1rem 1.2rem;margin-bottom:1rem;
+  font-family:var(--mono);font-size:0.72rem;line-height:1.6;
+}
+.scenario-title{color:var(--cyan);font-weight:700;margin-bottom:0.4rem;font-size:0.68rem;letter-spacing:0.1em;}
+
+/* No results */
+#no-results{display:none;text-align:center;padding:4rem 2rem;color:var(--dim);}
+#no-results .nr-icon{font-size:2.5rem;margin-bottom:1rem;}
+#no-results p{font-family:var(--mono);font-size:0.8rem;}
+
+/* Highlight from search */
+mark{background:rgba(252,211,77,0.3);color:var(--amber);border-radius:3px;padding:0 2px;}
+
+/* Scroll to top */
+.scroll-top{
+  position:fixed;bottom:2rem;right:2rem;z-index:50;
+  width:40px;height:40px;border-radius:50%;
+  background:var(--bg2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:0.8rem;color:var(--dim);
+  transition:all 0.2s;opacity:0;pointer-events:none;
+}
+.scroll-top.show{opacity:1;pointer-events:auto;}
+.scroll-top:hover{border-color:var(--cyan);color:var(--cyan);}
+/* ── SITE NAV ── */
+.site-nav{
+  position:sticky;top:0;z-index:200;
+  background:rgba(12,14,20,0.95);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 2rem;height:52px;
+}
+.site-nav-brand{
+  font-family:var(--mono);font-size:0.62rem;letter-spacing:0.18em;
+  color:var(--cyan);display:flex;align-items:center;gap:0.6rem;
+}
+.site-nav-brand::before{content:'';width:20px;height:1px;background:var(--cyan);}
+.site-nav-links{display:flex;gap:0.4rem;}
+.nav-pill{
+  font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;
+  padding:0.35rem 1rem;border-radius:999px;
+  border:1px solid var(--border);
+  background:transparent;color:var(--dim);
+  text-decoration:none;transition:all 0.2s;cursor:pointer;
+}
+.nav-pill:hover{border-color:var(--cyan);color:var(--cyan);}
+.nav-pill.active{background:var(--cyan);color:#000;border-color:var(--cyan);font-weight:700;}
+</style>
+</head>
+<body>
+<!-- Header (single nav bar) -->
+<header>
+  <div class="header-brand">TIERED STORAGE FAQ</div>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input type="text" id="searchInput" placeholder="Search questions... (e.g. 'minio', 'down', '3 broker')" oninput="doSearch(this.value)">
+  </div>
+  <div class="site-nav-links">
+    <span class="header-count" id="headerCount"></span>
+    <a href="index.html" class="nav-pill">🏠 Home</a>
+    <a href="tiered_storage_flow.html" class="nav-pill">⚡ Flow</a>
+    <a href="tiered_storage_faq.html" class="nav-pill active">❓ FAQ</a>
+  </div>
+</header>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-label">CONFLUENT · TIERED STORAGE · SEGMENT SCENARIOS</div>
+  <h1>Frequently Asked<br><em>Questions</em></h1>
+  <p>Deep-dive Q&A untuk setiap skenario segment — dari struktur data di MinIO, proses tiering, sampai failure recovery.</p>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+  <button class="pill active" onclick="filterCat('all',this)">All</button>
+  <button class="pill" onclick="filterCat('segment',this)">Segment Structure</button>
+  <button class="pill" onclick="filterCat('minio',this)">MinIO / Object Store</button>
+  <button class="pill" onclick="filterCat('process',this)">Tiering Process</button>
+  <button class="pill" onclick="filterCat('failure',this)">Failure Scenarios</button>
+  <button class="pill" onclick="filterCat('fetch',this)">Fetch & Consumer</button>
+  <button class="pill" onclick="filterCat('config',this)">Config & Tuning</button>
+  <button class="pill" onclick="filterCat('rbac',this)">Security & RBAC</button>
+</div>
+
+<div class="container" id="mainContainer">
+<!-- FAQ content rendered by JS -->
+</div>
+
+<div id="no-results">
+  <div class="nr-icon">🔍</div>
+  <p>Tidak ada pertanyaan yang cocok dengan pencarian kamu.</p>
+</div>
+
+<div class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// FAQ DATA
+// ══════════════════════════════════════════════════════
+const faqData = [
+
+// ─────────────────────────────────────────
+// SECTION A: SEGMENT STRUCTURE & DATA FORMAT
+// ─────────────────────────────────────────
+{
+  section:"A", sectionName:"Segment Structure & Data Format", sectionSub:"FORMAT FISIK · BINARY LAYOUT · FILE TYPES",
+  items:[
+    {
+      id:"A1", cat:["segment"],
+      q:"Apa saja file yang terbentuk untuk satu segment di local broker?",
+      tags:[{t:"segment files",c:"cyan"},{t:"local storage",c:"green"}],
+      a:`
+<div class="scenario"><div class="scenario-title">SCENARIO: Topic 'payments', Partition 0, Segment dengan base offset 0</div>
+<span class="ck">/kafka-logs/payments-0/</span></div>
+<div class="a-text">Setiap segment menghasilkan <strong>4 file utama</strong> di direktori partition:</div>
+<div class="code">
+<span class="cc"># File-file yang terbentuk untuk satu segment:</span><br>
+<span class="cv">00000000000000000000.log</span>       <span class="cc"># ← WAJIB: data utama (record batches)</span><br>
+<span class="cv">00000000000000000000.index</span>     <span class="cc"># ← WAJIB: sparse offset index (8 bytes/entry)</span><br>
+<span class="cv">00000000000000000000.timeindex</span> <span class="cc"># ← WAJIB: timestamp→offset index (12 bytes/entry)</span><br>
+<span class="cv">00000000000000000000.txnindex</span>  <span class="cc"># ← muncul jika topic pakai transactions (EOS)</span><br>
+<span class="cv">00000000000000000000.snapshot</span>  <span class="cc"># ← producer state snapshot (idempotent producer)</span>
+</div>
+<div class="a-text"><strong>Nama file = base offset</strong> dari segment itu, zero-padded 20 digit. Jadi segment yang mulai dari offset 12,345,678 akan bernama <em>00000000000012345678.log</em>.</div>
+<div class="a-block">
+<div class="a-block-label">DETAIL UKURAN TIPIKAL</div>
+<div class="a-block-body">
+<table class="cmp-table"><thead><tr><th>File</th><th>Ukuran tipikal</th><th>Growth pattern</th></tr></thead>
+<tbody>
+<tr><td><code class="ck">.log</code></td><td>Sampai segment.bytes (default 1GB)</td><td>Sequential append</td></tr>
+<tr><td><code class="ck">.index</code></td><td>~256KB (sparse, 1 entry per 4KB data)</td><td>Sparse, jauh lebih kecil dari .log</td></tr>
+<tr><td><code class="ck">.timeindex</code></td><td>~384KB</td><td>Sparse sama seperti .index</td></tr>
+<tr><td><code class="ck">.txnindex</code></td><td>Kecil, hanya abort markers</td><td>Hanya jika ada aborted transactions</td></tr>
+</tbody></table>
+</div>
+</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> Active segment (yang sedang ditulis) punya file <strong>.log, .index, .timeindex yang terbuka</strong> untuk appending. Saat di-roll (ditutup), semua file di-flush dan segment siap untuk tiering.</div>`
+    },
+    {
+      id:"A2", cat:["segment"],
+      q:"Apa format binary dari file .log? Bagaimana struktur satu RecordBatch?",
+      tags:[{t:"binary format",c:"amber"},{t:".log file",c:"cyan"},{t:"RecordBatch",c:"violet"}],
+      a:`
+<div class="a-text">File <em>.log</em> berisi deretan <strong>RecordBatch</strong> yang ditulis secara sequential (append-only). Tidak ada header global di file — langsung record batch pertama dari byte 0.</div>
+<div class="code">
+<span class="cc">┌──────────────────────────────────────────────────────┐</span><br>
+<span class="cc">│              RECORD BATCH HEADER (61 bytes)          │</span><br>
+<span class="cc">├──────────────────────────────────────────────────────┤</span><br>
+<span class="ck">BaseOffset</span>           <span class="cc">int64  8 bytes  ← offset record pertama di batch</span><br>
+<span class="ck">BatchLength</span>          <span class="cc">int32  4 bytes  ← panjang total batch setelah field ini</span><br>
+<span class="ck">PartitionLeaderEpoch</span> <span class="cc">int32  4 bytes  ← epoch leader saat batch ditulis</span><br>
+<span class="ck">Magic</span>                <span class="cc">int8   1 byte   ← versi format (= 2 sejak Kafka 0.11)</span><br>
+<span class="ck">CRC</span>                  <span class="cc">int32  4 bytes  ← CRC32C dari semua field setelahnya</span><br>
+<span class="ck">Attributes</span>           <span class="cc">int16  2 bytes  ← compression(0-3), timestampType, isTransactional, isControlBatch</span><br>
+<span class="ck">LastOffsetDelta</span>      <span class="cc">int32  4 bytes  ← (lastOffset - baseOffset)</span><br>
+<span class="ck">BaseTimestamp</span>        <span class="cc">int64  8 bytes  ← timestamp record pertama (epoch ms)</span><br>
+<span class="ck">MaxTimestamp</span>         <span class="cc">int64  8 bytes  ← timestamp terbesar dalam batch</span><br>
+<span class="ck">ProducerId</span>           <span class="cc">int64  8 bytes  ← untuk idempotent/EOS (-1 jika tidak digunakan)</span><br>
+<span class="ck">ProducerEpoch</span>        <span class="cc">int16  2 bytes  ← epoch producer</span><br>
+<span class="ck">BaseSequence</span>         <span class="cc">int32  4 bytes  ← sequence number awal batch</span><br>
+<span class="ck">RecordCount</span>          <span class="cc">int32  4 bytes  ← jumlah records dalam batch</span><br>
+<span class="cc">├──────────────────────────────────────────────────────┤</span><br>
+<span class="cc">│              RECORDS (RecordCount buah)              │</span><br>
+<span class="cc">├──────────────────────────────────────────────────────┤</span><br>
+<span class="ck">Length</span>               <span class="cc">varint         ← panjang record ini</span><br>
+<span class="ck">Attributes</span>           <span class="cc">int8           ← selalu 0 saat ini</span><br>
+<span class="ck">TimestampDelta</span>       <span class="cc">varint         ← timestamp - BaseTimestamp</span><br>
+<span class="ck">OffsetDelta</span>          <span class="cc">varint         ← offset - BaseOffset</span><br>
+<span class="ck">KeyLength</span>            <span class="cc">varint         ← -1 jika null key</span><br>
+<span class="ck">Key</span>                  <span class="cc">bytes          ← payload key (bisa null)</span><br>
+<span class="ck">ValueLength</span>          <span class="cc">varint         ← -1 jika null value (tombstone)</span><br>
+<span class="ck">Value</span>                <span class="cc">bytes          ← payload data kamu (bisa compressed)</span><br>
+<span class="ck">Headers</span>              <span class="cc">array(key,val) ← metadata tambahan</span><br>
+<span class="cc">└──────────────────────────────────────────────────────┘</span>
+</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> Compression (Snappy, LZ4, ZSTD, GZIP) diterapkan pada <strong>seluruh batch Records</strong>, bukan per-record. Header RecordBatch tidak dikompresi. Format ini identik persis antara local storage dan remote object store.</div>`
+    },
+    {
+      id:"A3", cat:["segment"],
+      q:"Bagaimana format file .index bekerja? Kenapa tidak semua offset diindex?",
+      tags:[{t:"sparse index",c:"cyan"},{t:".index file",c:"green"},{t:"binary search",c:"amber"}],
+      a:`
+<div class="a-text">File <em>.index</em> adalah <strong>sparse offset index</strong> — tidak setiap offset punya entry, melainkan satu entry per N bytes data (dikontrol oleh <em>index.interval.bytes</em>, default 4096). Ini trade-off antara ukuran index vs kecepatan lookup.</div>
+<div class="code">
+<span class="cc"># Struktur setiap entry di .index: TEPAT 8 bytes</span><br>
+<span class="ck">RelativeOffset</span>  <span class="cc">int32  4 bytes  ← (offset - baseOffset), bukan absolute!</span><br>
+<span class="ck">Position</span>        <span class="cc">int32  4 bytes  ← byte position di .log file</span><br>
+<br>
+<span class="cc"># Contoh isi .index untuk segment base offset = 0:</span><br>
+<span class="cv">RelativeOffset=0       Position=0</span><br>
+<span class="cv">RelativeOffset=1250    Position=65536</span>    <span class="cc"># entry dibuat setiap 4KB .log data</span><br>
+<span class="cv">RelativeOffset=3100    Position=131072</span><br>
+<span class="cv">RelativeOffset=4800    Position=196608</span>
+</div>
+<div class="a-text">Ketika broker menerima fetch request untuk offset X, prosesnya adalah:</div>
+<div class="flow-steps">
+<div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><div class="flow-step-title">Binary search di .index</div><div class="flow-step-desc">Cari entry terbesar yang RelativeOffset ≤ (X - baseOffset). O(log n) — sangat cepat.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><div class="flow-step-title">Dapat Position (byte offset di .log)</div><div class="flow-step-desc">Entry index memberitahu: "lompat ke byte N di .log file".</div></div></div>
+<div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-body"><div class="flow-step-title">Scan linear dari Position tersebut</div><div class="flow-step-desc">Baca record batches satu per satu sampai menemukan offset X yang diinginkan. Scan pendek karena index sangat dekat.</div></div></div>
+</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> File .index dipreallokasi penuh saat segment dibuat (berdasarkan segment.index.bytes, default 10MB), lalu di-truncate saat segment di-roll. Itulah kenapa <code>ls -la</code> menunjukkan ukuran besar padahal isinya sedikit.</div>`
+    },
+    {
+      id:"A4", cat:["segment","minio"],
+      q:"Skenario 3 broker, replication factor 2: berapa copy segment yang ada di disk?",
+      tags:[{t:"3 broker",c:"orange"},{t:"RF=2",c:"amber"},{t:"replica count",c:"cyan"}],
+      a:`
+<div class="scenario">
+<div class="scenario-title">SCENARIO: 3 Broker, Replication Factor = 2, Topic 'payments', Partition 0</div>
+Kafka memilih 2 dari 3 broker untuk menyimpan partition ini. Misalkan: Leader = Broker-1, Follower = Broker-3.
+</div>
+<div class="a-text">Dengan RF=2, setiap segment ada di <strong>tepat 2 broker</strong>:</div>
+<div class="code">
+<span class="cc"># BROKER-1 (Leader Partition 0)</span><br>
+<span class="co">/kafka-logs/payments-0/</span><br>
+<span class="cv">├── 00000000000000000000.log</span>     <span class="cc">← COPY 1 (leader, yang upload ke MinIO)</span><br>
+<span class="cv">├── 00000000000000000000.index</span><br>
+<span class="cv">└── 00000000000000000000.timeindex</span><br>
+<br>
+<span class="cc"># BROKER-2 (tidak punya partition 0 ini, hanya partisi lain)</span><br>
+<span class="co">/kafka-logs/</span>  <span class="cc">← tidak ada payments-0 di sini</span><br>
+<br>
+<span class="cc"># BROKER-3 (Follower Partition 0)</span><br>
+<span class="co">/kafka-logs/payments-0/</span><br>
+<span class="cv">├── 00000000000000000000.log</span>     <span class="cc">← COPY 2 (follower, sync dari leader)</span><br>
+<span class="cv">├── 00000000000000000000.index</span><br>
+<span class="cv">└── 00000000000000000000.timeindex</span>
+</div>
+<div class="alert alert-warn"><span class="alert-icon">⚠</span> <strong>Hanya Broker-1 (Leader) yang mengupload ke MinIO.</strong> Broker-3 (Follower) tidak mengupload — dia hanya sync metadata. Di MinIO, segment ini hanya ada <strong>1 copy</strong> (kecuali MinIO dikonfigurasi dengan erasure coding/replication sendiri).</div>
+<div class="a-block">
+<div class="a-block-label">SUMMARY: BERAPA COPY TOTAL?</div>
+<div class="a-block-body">
+<table class="cmp-table"><thead><tr><th>Lokasi</th><th>Jumlah Copy</th><th>Siapa yang simpan</th></tr></thead>
+<tbody>
+<tr><td>Local disk Broker-1</td><td>1 copy (Leader)</td><td>Active + hotset period</td></tr>
+<tr><td>Local disk Broker-3</td><td>1 copy (Follower)</td><td>Active + hotset period</td></tr>
+<tr><td>MinIO object store</td><td>1 copy (dari Leader)</td><td>Setelah tiering, permanent</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>Hotset: 2 copy / Post-hotset: 1 copy di MinIO</strong></td><td></td></tr>
+</tbody></table>
+</div>
+</div>
+<div class="alert alert-warn"><span class="alert-icon">⚠</span> Setelah hotset.ms expired, segment lokal di Broker-1 dan Broker-3 keduanya dihapus. Data hanya ada di MinIO. Inilah mengapa <strong>MinIO harus dikonfigurasi dengan erasure coding</strong> untuk redundansi!</div>`
+    },
+  ]
+},
+
+// ─────────────────────────────────────────
+// SECTION B: DATA DI MINIO — STRUKTUR & FORMAT
+// ─────────────────────────────────────────
+{
+  section:"B", sectionName:"Data di MinIO — Struktur & Format", sectionSub:"OBJECT STORE · KEY STRUCTURE · UPLOAD FLOW",
+  items:[
+    {
+      id:"B1", cat:["minio","process"],
+      q:"Bagaimana bentuk data segment yang tersimpan di MinIO? Apa key/path-nya?",
+      tags:[{t:"MinIO structure",c:"orange"},{t:"S3 key",c:"cyan"},{t:"object path",c:"green"}],
+      a:`
+<div class="scenario">
+<div class="scenario-title">SCENARIO: Cluster ID = abc123, Topic 'payments' (UUID = xyz789), Partition 0, Segment base offset = 0</div>
+</div>
+<div class="a-text">Di MinIO, setiap segment disimpan sebagai <strong>beberapa S3 objects</strong> (bukan satu file tunggal). Key structure menggunakan kombinasi cluster ID + topic UUID + partition + base offset:</div>
+<div class="code">
+<span class="cc"># Bucket: kafka-tiered-storage</span><br>
+<span class="cc"># Objects yang dibuat untuk SATU segment:</span><br>
+<br>
+<span class="co">abc123/xyz789/0/00000000000000000000/</span><span class="ck">log</span>          <span class="cc">← data file utama</span><br>
+<span class="co">abc123/xyz789/0/00000000000000000000/</span><span class="ck">index</span>        <span class="cc">← offset index</span><br>
+<span class="co">abc123/xyz789/0/00000000000000000000/</span><span class="ck">time_index</span>   <span class="cc">← timestamp index</span><br>
+<span class="co">abc123/xyz789/0/00000000000000000000/</span><span class="ck">txn_index</span>    <span class="cc">← transaction index (jika ada)</span><br>
+<span class="co">abc123/xyz789/0/00000000000000000000/</span><span class="ck">manifest</span>     <span class="cc">← Confluent metadata JSON</span><br>
+<br>
+<span class="cc"># Format path: {cluster-id}/{topic-uuid}/{partition-id}/{base-offset}/{file-type}</span>
+</div>
+<div class="a-text">File <em>manifest</em> adalah tambahan dari Confluent (tidak ada di Apache Kafka biasa). Isinya adalah JSON metadata:</div>
+<div class="code">
+<span class="cc">// Isi manifest (contoh):</span><br>
+{<br>
+&nbsp;&nbsp;<span class="ck">"version"</span>: <span class="cv">1</span>,<br>
+&nbsp;&nbsp;<span class="ck">"topicId"</span>: <span class="cv">"xyz789"</span>,<br>
+&nbsp;&nbsp;<span class="ck">"partition"</span>: <span class="cv">0</span>,<br>
+&nbsp;&nbsp;<span class="ck">"baseOffset"</span>: <span class="cv">0</span>,<br>
+&nbsp;&nbsp;<span class="ck">"endOffset"</span>: <span class="cv">12499</span>,<br>
+&nbsp;&nbsp;<span class="ck">"sizeInBytes"</span>: <span class="cv">536870912</span>,<br>
+&nbsp;&nbsp;<span class="ck">"uploadTimestamp"</span>: <span class="cv">1700000000000</span>,<br>
+&nbsp;&nbsp;<span class="ck">"leaderEpoch"</span>: <span class="cv">3</span>,<br>
+&nbsp;&nbsp;<span class="ck">"compression"</span>: <span class="cv">"snappy"</span><br>
+}
+</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> Topic UUID (bukan nama topic) digunakan sebagai path karena topic bisa di-rename atau di-recreate dengan nama yang sama. UUID menjamin uniqueness.</div>`
+    },
+    {
+      id:"B2", cat:["minio","process"],
+      q:"Bagaimana proses upload segment ke MinIO step by step? Apa yang terjadi jika upload gagal di tengah jalan?",
+      tags:[{t:"upload process",c:"green"},{t:"failure handling",c:"rose"},{t:"atomicity",c:"amber"}],
+      a:`
+<div class="a-text">Proses upload <strong>tidak atomic secara S3</strong> — tapi Confluent memastikan konsistensi via metadata topic. Berikut langkah detailnya:</div>
+<div class="flow-steps">
+<div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><div class="flow-step-title">Segment Roll & Flush</div><div class="flow-step-desc">Active segment ditutup saat segment.bytes atau segment.ms tercapai. Semua data di-flush ke disk OS (fsync). Status: segment.log closed, tidak ada write baru ke segment ini.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><div class="flow-step-title">Leader memulai upload (Tiering Thread)</div><div class="flow-step-desc">Confluent menjalankan background tiering thread yang scan segment-segment yang eligible (rolled + belum di-tier). Thread ini berbeda dari network thread — tidak memblokir producer/consumer.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-body"><div class="flow-step-title">Upload .log ke MinIO (S3 PutObject / Multipart)</div><div class="flow-step-desc">File .log besar diupload via S3 Multipart Upload (5MB+ per part). Jika gagal di tengah: S3 abort multipart, coba ulang dari awal. File .index dan .timeindex diupload sebagai PutObject biasa (lebih kecil).</div></div></div>
+<div class="flow-step"><div class="flow-step-num">4</div><div class="flow-step-body"><div class="flow-step-title">Upload manifest</div><div class="flow-step-desc">Setelah semua file segment terupload sukses, manifest ditulis terakhir. Manifest = "tanda bahwa segment ini complete di object store".</div></div></div>
+<div class="flow-step"><div class="flow-step-num">5</div><div class="flow-step-body"><div class="flow-step-title">Tulis metadata ke _confluent-tier-state</div><div class="flow-step-desc">Leader produce record ke internal topic dengan info: partition, base offset, end offset, object store path, dll. Followers akan fetch dan update in-memory map mereka.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">6</div><div class="flow-step-body"><div class="flow-step-title">Local segment eligible untuk deletion</div><div class="flow-step-desc">Setelah step 5 sukses, segment lokal ditandai "tiered". Setelah hotset.ms berlalu dari waktu segment di-roll, local file dihapus.</div></div></div>
+</div>
+<div class="a-block">
+<div class="a-block-label">JIKA UPLOAD GAGAL</div>
+<div class="a-block-body">
+<div class="alert alert-warn" style="margin:0 0 0.5rem;"><span class="alert-icon">⚠</span> <strong>Upload gagal di step 3 (transfer terputus):</strong> Multipart upload di-abort. Confluent retry dengan exponential backoff. Local segment tetap ada sampai retry sukses. Tidak ada data loss.</div>
+<div class="alert alert-warn" style="margin:0 0 0.5rem;"><span class="alert-icon">⚠</span> <strong>Gagal di step 5 (metadata write):</strong> Object sudah ada di MinIO tapi belum tercatat di tier-state. Confluent akan coba upload ulang — tapi karena manifest sudah ada, akan detect duplikat dan skip re-upload, langsung tulis metadata lagi.</div>
+<div class="alert alert-ok" style="margin:0;"><span class="alert-icon">✓</span> <strong>Dalam semua kasus:</strong> Local segment TIDAK dihapus sampai metadata berhasil tercatat di _confluent-tier-state. Jadi data tidak pernah hilang karena partial upload.</div>
+</div>
+</div>`
+    },
+    {
+      id:"B3", cat:["minio","config"],
+      q:"Bagaimana mengkonfigurasi Confluent untuk connect ke MinIO on-premise?",
+      tags:[{t:"MinIO config",c:"orange"},{t:"server.properties",c:"cyan"},{t:"S3 endpoint",c:"green"}],
+      a:`
+<div class="a-text">MinIO menggunakan S3-compatible API, jadi Confluent menggunakan S3 backend dengan endpoint override. Konfigurasi di <em>server.properties</em> setiap broker:</div>
+<div class="code">
+<span class="cc">### ── ENABLE TIERED STORAGE ─────────────────────</span><br>
+<span class="ck">confluent.tier.enable</span>=<span class="cv">true</span><br>
+<span class="ck">confluent.tier.backend</span>=<span class="cv">S3</span><br>
+<br>
+<span class="cc">### ── MINIO CONNECTION ──────────────────────────</span><br>
+<span class="ck">confluent.tier.s3.bucket</span>=<span class="cv">kafka-tiered-storage</span><br>
+<span class="ck">confluent.tier.s3.region</span>=<span class="cv">us-east-1</span>             <span class="cc"># nilai apapun, MinIO butuh ini tapi ignore</span><br>
+<span class="ck">confluent.tier.s3.endpoint.override</span>=<span class="cv">http://minio.internal:9000</span><br>
+<span class="ck">confluent.tier.s3.path.style.access</span>=<span class="cv">true</span>       <span class="cc"># WAJIB untuk MinIO!</span><br>
+<span class="ck">confluent.tier.s3.cred.file.path</span>=<span class="cv">/etc/kafka/minio-creds</span><br>
+<br>
+<span class="cc">### ── CREDENTIALS FILE (/etc/kafka/minio-creds) ─</span><br>
+<span class="ck">aws.access.key.id</span>=<span class="cv">minioadmin</span><br>
+<span class="ck">aws.secret.access.key</span>=<span class="cv">minioadmin123</span><br>
+<br>
+<span class="cc">### ── RETENTION & HOTSET ────────────────────────</span><br>
+<span class="ck">confluent.tier.local.hotset.ms</span>=<span class="cv">3600000</span>          <span class="cc"># 1 jam di local</span><br>
+<span class="ck">confluent.tier.metadata.replication.factor</span>=<span class="cv">3</span><br>
+<br>
+<span class="cc">### ── PER-TOPIC (kafka-topics --alter) ──────────</span><br>
+<span class="ck">confluent.tier.enable</span>=<span class="cv">true</span><br>
+<span class="ck">confluent.tier.local.hotset.ms</span>=<span class="cv">1800000</span>          <span class="cc"># bisa override per-topic</span>
+</div>
+<div class="alert alert-warn"><span class="alert-icon">⚠</span> <strong>path.style.access=true</strong> WAJIB untuk MinIO. Default S3 AWS menggunakan virtual-hosted style (<code>bucket.s3.amazonaws.com</code>), sedangkan MinIO menggunakan path style (<code>minio:9000/bucket</code>). Tanpa ini koneksi gagal.</div>`
+    },
+    {
+      id:"B4", cat:["minio","config"],
+      q:"Bagaimana MinIO harus dikonfigurasi untuk menjamin redundansi segment data?",
+      tags:[{t:"erasure coding",c:"amber"},{t:"redundancy",c:"green"},{t:"MinIO setup",c:"orange"}],
+      a:`
+<div class="a-text">MinIO secara native sudah punya <strong>erasure coding</strong> — data disebar ke multiple drive/node dengan parity. Konfigurasi yang direkomendasikan untuk production:</div>
+<div class="a-block">
+<div class="a-block-label">ERASURE CODING SETUP (8+4 = tahan 4 drive failure)</div>
+<div class="a-block-body">
+<div class="code">
+<span class="cc"># Deploy MinIO dengan 12 drive minimum untuk 8+4 erasure coding</span><br>
+<span class="cc"># Bisa 1 server 12 drive atau 4 server × 3 drive</span><br>
+<br>
+<span class="cc"># docker-compose atau minio systemd config:</span><br>
+<span class="ck">MINIO_VOLUMES</span>=<span class="cv">"http://minio{1...4}/data{1...3}"</span><br>
+<span class="ck">MINIO_ERASURE_SET_DRIVE_COUNT</span>=<span class="cv">12</span><br>
+<br>
+<span class="cc"># Dengan 8+4: data di-split 8 bagian, 4 parity</span><br>
+<span class="cc"># Tahan sampai 4 drive mati sekaligus tanpa data loss</span>
+</div>
+</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">BUCKET VERSIONING (untuk recovery accidental delete)</div>
+<div class="a-block-body">
+<div class="code">
+<span class="cc"># Via MinIO Client (mc):</span><br>
+<span class="ck">mc mb</span> <span class="cv">myminio/kafka-tiered-storage</span><br>
+<span class="ck">mc version enable</span> <span class="cv">myminio/kafka-tiered-storage</span><br>
+<span class="ck">mc ilm add</span> <span class="cv">myminio/kafka-tiered-storage</span> \<br>
+&nbsp;&nbsp;<span class="ck">--noncurrent-expire-days</span> <span class="cv">30</span>   <span class="cc"># hapus versi lama setelah 30 hari</span>
+</div>
+</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">OBJECT LOCK (compliance / immutability)</div>
+<div class="a-block-body">
+<div class="code">
+<span class="cc"># Untuk kebutuhan compliance (data tidak bisa dihapus sebelum waktunya):</span><br>
+<span class="ck">mc mb</span> <span class="cv">--with-lock myminio/kafka-compliance-bucket</span><br>
+<span class="ck">mc retention set</span> <span class="cv">--default GOVERNANCE 365d</span> \<br>
+&nbsp;&nbsp;<span class="cv">myminio/kafka-compliance-bucket</span>
+</div>
+</div>
+</div>
+<table class="cmp-table"><thead><tr><th>Setup</th><th>Tahan berapa drive fail?</th><th>Overhead storage</th></tr></thead>
+<tbody>
+<tr><td>4+2 (6 drives min)</td><td>2 drives</td><td>50% (2/6 parity)</td></tr>
+<tr><td>8+4 (12 drives min)</td><td>4 drives</td><td>33% (4/12 parity)</td></tr>
+<tr><td>16+4 (20 drives min)</td><td>4 drives</td><td>20% (4/20 parity)</td></tr>
+</tbody></table>`
+    },
+  ]
+},
+
+// ─────────────────────────────────────────
+// SECTION C: FAILURE SCENARIOS
+// ─────────────────────────────────────────
+{
+  section:"C", sectionName:"Failure Scenarios & Recovery", sectionSub:"DOWN · CRASH · RECOVERY · FAILOVER",
+  items:[
+    {
+      id:"C1", cat:["failure"],
+      q:"Leader broker down saat sedang mengupload segment ke MinIO. Apa yang terjadi?",
+      tags:[{t:"leader crash",c:"rose"},{t:"upload interrupted",c:"amber"},{t:"failover",c:"cyan"}],
+      a:`
+<div class="scenario">
+<div class="scenario-title">SCENARIO: Broker-1 (Leader) crash di tengah upload segment ke MinIO. Upload baru 40% selesai.</div>
+</div>
+<div class="flow-steps">
+<div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><div class="flow-step-title">Broker-1 crash, koneksi ke MinIO terputus</div><div class="flow-step-desc">MinIO melihat multipart upload tidak selesai. Object tidak ada di MinIO (incomplete upload tidak dihitung). Tidak ada data corrupt di MinIO.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><div class="flow-step-title">Controller Kafka pilih Leader baru (misalkan Broker-3)</div><div class="flow-step-desc">Broker-3 (sebelumnya follower) dipilih menjadi leader. Karena dia sudah punya replica data yang sama (RF=2), semua data ada.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-body"><div class="flow-step-title">Broker-3 cek _confluent-tier-state</div><div class="flow-step-desc">Broker-3 baca metadata tier-state. Segment yang tadi gagal diupload TIDAK ada di metadata (karena Broker-1 crash sebelum menulis metadata). Jadi Broker-3 tahu segment ini belum di-tier.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">4</div><div class="flow-step-body"><div class="flow-step-title">Broker-3 mengulang upload dari awal</div><div class="flow-step-desc">Sebagai leader baru, Broker-3 bertanggung jawab mengupload segment yang belum ter-tier. Upload dimulai dari awal (bukan lanjut dari 40% — karena multipart upload di MinIO sudah di-abort/expired).</div></div></div>
+<div class="flow-step"><div class="flow-step-num">5</div><div class="flow-step-body"><div class="flow-step-title">Upload sukses, metadata ditulis</div><div class="flow-step-desc">Normal flow berlanjut. Jika Broker-1 kembali online, dia akan join sebagai follower dan sync dari leader baru.</div></div></div>
+</div>
+<div class="alert alert-ok"><span class="alert-icon">✓</span> <strong>Zero data loss.</strong> Data tetap ada di local disk Broker-3 (follower yang jadi leader) selama proses ini. Segment tidak akan dihapus dari local sampai upload benar-benar sukses dan metadata tercatat.</div>
+<div class="alert alert-warn"><span class="alert-icon">⚠</span> <strong>Incomplete multipart uploads</strong> di MinIO perlu di-cleanup secara berkala untuk menghindari "orphan" storage usage: <code class="ck">mc rm --incomplete --recursive myminio/bucket</code> atau set lifecycle policy untuk auto-expire incomplete multiparts setelah 7 hari.</div>`
+    },
+    {
+      id:"C2", cat:["failure"],
+      q:"MinIO down total. Apa yang terjadi dengan broker dan consumer?",
+      tags:[{t:"MinIO down",c:"rose"},{t:"producer impact",c:"amber"},{t:"consumer impact",c:"cyan"}],
+      a:`
+<div class="scenario">
+<div class="scenario-title">SCENARIO: MinIO cluster down (network issue / hardware failure). Kafka broker masih up.</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">IMPACT PADA PRODUCER (Write)</div>
+<div class="a-block-body">
+<div class="alert alert-ok" style="margin-bottom:0.5rem;"><span class="alert-icon">✓</span> <strong>Producer TIDAK terpengaruh sama sekali.</strong> Producer hanya menulis ke Leader replica di broker local. Tiering ke MinIO adalah proses background yang terpisah dari write path. Producer tetap bisa produce dengan normal.</div>
+<div class="a-text" style="margin:0;">Yang terjadi: segment baru tetap ditulis ke local disk, tetapi <strong>tiering akan backlog</strong> — segment yang sudah di-roll menumpuk di local disk menunggu bisa diupload ke MinIO.</div>
+</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">IMPACT PADA RT CONSUMER (Baca Hotset)</div>
+<div class="a-block-body">
+<div class="alert alert-ok" style="margin-bottom:0.5rem;"><span class="alert-icon">✓</span> <strong>RT Consumer yang membaca data recent (dalam hotset) juga TIDAK terpengaruh.</strong> Data hotset ada di local disk broker dan page cache. MinIO tidak diakses untuk data ini.</div>
+</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">IMPACT PADA HISTORICAL CONSUMER (Baca Remote)</div>
+<div class="a-block-body">
+<div class="alert alert-danger" style="margin-bottom:0.5rem;"><span class="alert-icon">✗</span> <strong>Historical consumer yang butuh data dari MinIO akan GAGAL.</strong> Broker akan coba stream dari MinIO, tapi MinIO down → connection timeout → broker return error ke consumer.</div>
+<div class="code">
+<span class="cr"># Error yang diterima consumer:</span><br>
+<span class="ca">org.apache.kafka.common.errors.RetriableException</span>: <br>
+&nbsp;&nbsp;Failed to fetch record from remote tier<br>
+<span class="ca">Caused by</span>: <span class="cr">java.net.ConnectException</span>: Connection refused to minio:9000
+</div>
+</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">YANG TERJADI PADA LOCAL DISK BROKER</div>
+<div class="a-block-body">
+<div class="alert alert-warn"><span class="alert-icon">⚠</span> <strong>KRITIS: Jika MinIO down lama, local disk broker bisa PENUH.</strong> Segment yang sudah di-roll tidak bisa diupload → tidak bisa dihapus dari local → hotset terus menumpuk. Broker akan suspend saat disk usage ≥ log.dirs disk full threshold. Monitor disk usage saat MinIO down!</div>
+<div class="code">
+<span class="cc"># Monitor backlog tiering via JMX:</span><br>
+<span class="ck">kafka.tier:type=TierArchiver,name=BytesPending</span>      <span class="cc">← seberapa besar backlog</span><br>
+<span class="ck">kafka.tier:type=TierArchiver,name=ArchiveErrors</span>     <span class="cc">← berapa kali gagal upload</span><br>
+<span class="ck">kafka.tier:type=TierArchiver,name=ArchiveLag</span>        <span class="cc">← seberapa "tertinggal" tiering
+</span>
+</div>
+</div>
+</div>`
+    },
+    {
+      id:"C3", cat:["failure"],
+      q:"Hotset expired tapi MinIO masih down. Apakah segment lokal dihapus?",
+      tags:[{t:"hotset expired",c:"amber"},{t:"data loss risk",c:"rose"},{t:"safety mechanism",c:"green"}],
+      a:`
+<div class="scenario">
+<div class="scenario-title">SCENARIO: hotset.ms = 3600000 (1 jam). Segment di-roll 1 jam lalu. MinIO baru saja down. Apakah Confluent menghapus segment lokal?</div>
+</div>
+<div class="a-text"><strong>Jawaban: TIDAK.</strong> Confluent punya safety mechanism — segment lokal hanya dihapus jika memenuhi SEMUA kondisi berikut:</div>
+<div class="code">
+<span class="cc">Kondisi 1:</span> <span class="ck">hotset.ms</span> sudah expired (<span class="cv">✓ sudah expired</span>)<br>
+<span class="cc">Kondisi 2:</span> Segment sudah berhasil diupload ke object store (<span class="cr">✗ belum terupload — MinIO down</span>)<br>
+<span class="cc">Kondisi 3:</span> Metadata tersimpan di _confluent-tier-state (<span class="cr">✗ belum ada metadata</span>)<br>
+<br>
+<span class="ca">→ Karena Kondisi 2 dan 3 tidak terpenuhi, segment TIDAK dihapus dari local.</span>
+</div>
+<div class="alert alert-ok"><span class="alert-icon">✓</span> Confluent menjamin: <strong>"Upload before delete"</strong>. Segment lokal akan tetap ada di disk sampai tiering sukses, tidak peduli berapa lama hotset.ms sudah berlalu.</div>
+<div class="alert alert-warn"><span class="alert-icon">⚠</span> <strong>Konsekuensi:</strong> Disk broker bisa penuh jika MinIO down terlalu lama. Solusinya: monitoring disk + alert, dan punya SLA MinIO yang baik. Pertimbangkan <code>confluent.tier.local.hotset.ms</code> yang cukup besar sebagai buffer.</div>
+<div class="a-block">
+<div class="a-block-label">REKOMENDASI MITIGASI</div>
+<div class="a-block-body">
+<div class="code">
+<span class="cc"># 1. Set disk alert di 70% usage (sebelum penuh):</span><br>
+<span class="ck">log.dirs.max.disk.usage.percentage</span>=<span class="cv">80</span><br>
+<br>
+<span class="cc"># 2. Deploy MinIO dengan high availability:</span><br>
+<span class="cc">#    - Minimal 4 server (quorum)</span><br>
+<span class="cc">#    - Tidak bergantung pada single point of failure</span><br>
+<br>
+<span class="cc"># 3. Pastikan disk broker cukup untuk menampung</span><br>
+<span class="cc">#    setidaknya 2x hotset normal sebagai buffer:</span><br>
+<span class="ck">disk_buffer</span> = <span class="cv">hotset.ms</span> × <span class="cv">throughput_per_partition</span> × <span class="cv">2</span>
+</div>
+</div>
+</div>`
+    },
+    {
+      id:"C4", cat:["failure"],
+      q:"_confluent-tier-state topic hilang atau corrupt. Apa yang terjadi dan bagaimana recovery?",
+      tags:[{t:"tier-state lost",c:"rose"},{t:"metadata recovery",c:"amber"},{t:"critical",c:"rose"}],
+      a:`
+<div class="a-text">Ini adalah salah satu skenario paling kritis. <em>_confluent-tier-state</em> berisi mapping antara partition offset dan lokasi object di MinIO. Jika topic ini hilang, broker "lupa" bahwa ada data di MinIO.</div>
+<div class="a-block">
+<div class="a-block-label">DAMPAK JIKA TIER-STATE HILANG</div>
+<div class="a-block-body">
+<div class="alert alert-danger" style="margin-bottom:0.5rem;"><span class="alert-icon">✗</span> <strong>Broker tidak tahu segment mana yang ada di MinIO.</strong> Logical view partition hanya berisi data yang masih di local (hotset). Data historis di MinIO masih ada secara fisik, tapi tidak bisa diakses via Kafka.</div>
+<div class="alert alert-danger"><span class="alert-icon">✗</span> <strong>Consumer yang fetch offset lama akan mendapat OffsetOutOfRangeException</strong> karena broker mengira data tidak ada (padahal ada di MinIO).</div>
+</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">RECOVERY OPTIONS</div>
+<div class="a-block-body">
+<div class="flow-steps">
+<div class="flow-step"><div class="flow-step-num">A</div><div class="flow-step-body"><div class="flow-step-title">Restore dari backup (terbaik)</div><div class="flow-step-desc">Jika ada backup _confluent-tier-state (via Confluent Replicator atau MirrorMaker 2), restore dari backup. Ini cara paling cepat dan safe.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">B</div><div class="flow-step-body"><div class="flow-step-title">Re-scan MinIO dan rebuild metadata</div><div class="flow-step-desc">Confluent punya tool internal untuk rescan bucket dan rebuild tier-state dari manifest files. Butuh access ke manifest di setiap segment object. Waktu recovery proporsional dengan jumlah segments di MinIO.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">C</div><div class="flow-step-body"><div class="flow-step-title">Manual recovery (last resort)</div><div class="flow-step-desc">Jika manifest juga hilang, data di MinIO masih ada (sebagai .log files) tapi sangat susah di-recover ke Kafka. Butuh custom tooling untuk parse object keys dan rebuild metadata.</div></div></div>
+</div>
+</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">PENCEGAHAN (SANGAT PENTING)</div>
+<div class="a-block-body">
+<div class="code">
+<span class="cc"># WAJIB: Set replication factor tinggi untuk tier-state topic:</span><br>
+<span class="ck">confluent.tier.metadata.replication.factor</span>=<span class="cv">3</span><br>
+<span class="ck">confluent.tier.topic.replication.factor</span>=<span class="cv">3</span><br>
+<br>
+<span class="cc"># REKOMENDASI: Backup tier-state topic secara regular:</span><br>
+<span class="cc"># Gunakan Confluent Replicator atau kafka-consumer-groups + kafka-producer</span><br>
+<span class="cc"># untuk mirror _confluent-tier-state ke backup cluster</span>
+</div>
+</div>
+</div>`
+    },
+    {
+      id:"C5", cat:["failure"],
+      q:"Semua 3 broker down sekaligus (power outage). Bagaimana recovery flow-nya?",
+      tags:[{t:"total cluster down",c:"rose"},{t:"power outage",c:"amber"},{t:"full recovery",c:"green"}],
+      a:`
+<div class="scenario">
+<div class="scenario-title">SCENARIO: 3 broker (RF=2), semua down karena power outage datacenter. MinIO masih OK karena power di storage rack berbeda.</div>
+</div>
+<div class="flow-steps">
+<div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><div class="flow-step-title">Start ulang semua broker satu per satu</div><div class="flow-step-desc">Mulai dari broker yang paling banyak partition leader-nya. Kafka otomatis melakukan leader election saat broker pertama online.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><div class="flow-step-title">Recovery local log (unclean shutdown check)</div><div class="flow-step-desc">Setiap broker scan local segment files. Jika ada unclean shutdown, broker truncate segment ke last stable offset (recovery.point). Data yang belum di-flush saat crash mungkin hilang dari local, tapi kemungkinan besar sudah ada di replica lain (dengan RF=2).</div></div></div>
+<div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-body"><div class="flow-step-title">Broker load _confluent-tier-state</div><div class="flow-step-desc">Setelah broker online, mereka load metadata dari _confluent-tier-state (yang tersimpan di local disk). Ini rebuild in-memory view tentang segment yang ada di MinIO.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">4</div><div class="flow-step-body"><div class="flow-step-title">Replica sync (leader ↔ follower)</div><div class="flow-step-desc">Follower yang tertinggal fetch data dari leader untuk catch up. Untuk segment yang sudah di-tier (tidak ada di local), follower fetch metadata dari tier-state (tidak perlu re-download dari MinIO).</div></div></div>
+<div class="flow-step"><div class="flow-step-num">5</div><div class="flow-step-body"><div class="flow-step-title">Cluster kembali normal</div><div class="flow-step-desc">Producer dan consumer bisa kembali connect. Data historis di MinIO tetap accessible. Data yang belum ter-tier saat crash akan di-tier oleh leader baru.</div></div></div>
+</div>
+<div class="alert alert-ok"><span class="alert-icon">✓</span> Karena MinIO masih OK, <strong>semua historical data aman</strong>. Data yang mungkin hilang hanya data di active segment yang belum di-flush saat power cut (bisa di-mitigasi dengan uninterruptible power supply / UPS untuk storage).</div>`
+    },
+    {
+      id:"C6", cat:["failure"],
+      q:"Segment di MinIO corrupt (bit rot / silent corruption). Bagaimana Kafka mendeteksi dan menanganinya?",
+      tags:[{t:"corruption",c:"rose"},{t:"CRC check",c:"amber"},{t:"data integrity",c:"green"}],
+      a:`
+<div class="a-text">Setiap RecordBatch dalam file .log memiliki <strong>CRC32C checksum</strong>. Saat broker fetch dari MinIO dan stream ke consumer, checksum di-verify.</div>
+<div class="code">
+<span class="cc">## Flow verifikasi:</span><br>
+<span class="cv">1.</span> Broker stream segment dari MinIO ke in-memory buffer<br>
+<span class="cv">2.</span> Broker parse setiap RecordBatch dari buffer<br>
+<span class="cv">3.</span> Broker hitung CRC32C dari batch content<br>
+<span class="cv">4.</span> Compare dengan CRC field di batch header<br>
+<span class="cv">5a.</span> <span class="cv">Match</span> → kirim ke consumer <span class="cc">(normal)</span><br>
+<span class="cv">5b.</span> <span class="cr">Mismatch</span> → throw InvalidRecordException<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="cr">  → consumer menerima error</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="cr">  → broker log corrupt segment detail</span>
+</div>
+<div class="a-block">
+<div class="a-block-label">APA YANG TERJADI JIKA DETECT CORRUPTION?</div>
+<div class="a-block-body">
+<div class="alert alert-danger" style="margin-bottom:0.5rem;"><span class="alert-icon">✗</span> Kafka sendiri <strong>tidak otomatis repair</strong> corrupt segment dari MinIO. Tidak ada self-healing mechanism di layer Kafka untuk remote segments.</div>
+<div class="alert alert-info" style="margin-bottom:0.5rem;"><span class="alert-icon">ℹ</span> <strong>MinIO dengan erasure coding</strong> adalah lini pertahanan utama: jika bit rot terjadi pada 1 drive, MinIO otomatis repair dari parity data tanpa sepengetahuan Kafka.</div>
+<div class="alert alert-ok"><span class="alert-icon">✓</span> <strong>Recovery manual:</strong> Jika segment di MinIO benar-benar corrupt dan tidak bisa di-repair oleh MinIO sendiri, opsinya adalah: (1) check apakah segment itu masih ada di local broker yang belum expired hotset-nya, (2) restore dari MinIO backup/versioning.</div>
+</div>
+</div>`
+    },
+  ]
+},
+
+// ─────────────────────────────────────────
+// SECTION D: FETCH & CONSUMER SCENARIOS
+// ─────────────────────────────────────────
+{
+  section:"D", sectionName:"Fetch & Consumer Scenarios", sectionSub:"READ PATH · OFFSET RESOLUTION · ISOLATION",
+  items:[
+    {
+      id:"D1", cat:["fetch"],
+      q:"Bagaimana broker tahu apakah suatu offset ada di local atau di MinIO?",
+      tags:[{t:"offset resolution",c:"cyan"},{t:"logical view",c:"green"},{t:"in-memory map",c:"violet"}],
+      a:`
+<div class="a-text">Setiap broker memaintain <strong>in-memory logical view</strong> per partition yang menggabungkan dua sumber informasi:</div>
+<div class="code">
+<span class="cc">## Sumber 1: Local Segment State</span><br>
+<span class="cc">   → Scan direktori /kafka-logs/topic-partition/</span><br>
+<span class="cc">   → Tahu: base offset dan end offset setiap segment yang ada di disk</span><br>
+<br>
+<span class="cc">## Sumber 2: Remote Segment Metadata (_confluent-tier-state)</span><br>
+<span class="cc">   → Subscribe ke internal topic ini</span><br>
+<span class="cc">   → Tahu: base offset, end offset, dan MinIO path setiap tiered segment</span><br>
+<br>
+<span class="cc">## Merge = Logical View</span><br>
+<span class="cv">Offset 0       - 12499:</span>  <span class="ca">REMOTE</span> <span class="cc">(abc123/xyz789/0/00000000000000000000/log)</span><br>
+<span class="cv">Offset 12500   - 24999:</span>  <span class="ca">REMOTE</span> <span class="cc">(abc123/xyz789/0/00000000000012500000/log)</span><br>
+<span class="cv">Offset 25000   - 37498:</span>  <span class="cv">BOTH</span>   <span class="cc">(overlap: di local DAN remote, pakai local)</span><br>
+<span class="cv">Offset 37499   - latest:</span> <span class="ck">LOCAL</span>  <span class="cc">(masih dalam hotset di disk)</span>
+</div>
+<div class="flow-steps">
+<div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><div class="flow-step-title">Consumer kirim FetchRequest dengan offset X</div><div class="flow-step-desc">Standard Kafka FetchRequest. Consumer tidak tahu (dan tidak peduli) data ada di local atau remote.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><div class="flow-step-title">Broker lookup offset X di logical view</div><div class="flow-step-desc">Binary search di in-memory map. O(log n) — sangat cepat, tidak ada disk I/O di step ini.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">3a</div><div class="flow-step-body"><div class="flow-step-title">Jika LOCAL → zero-copy dari page cache</div><div class="flow-step-desc">Pakai sendfile() syscall. Network thread langsung kirim ke consumer socket tanpa copy ke userspace. Sangat efisien.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">3b</div><div class="flow-step-body"><div class="flow-step-title">Jika REMOTE → spawn separate thread</div><div class="flow-step-desc">Network thread TIDAK blocking. Separate tier-fetch thread yang handle HTTP GET ke MinIO. Data di-stream ke in-memory buffer, lalu dikirim ke consumer.</div></div></div>
+</div>`
+    },
+    {
+      id:"D2", cat:["fetch"],
+      q:"Apakah ada overlap antara local dan remote segment? Mana yang diprioritaskan?",
+      tags:[{t:"overlap",c:"amber"},{t:"priority",c:"cyan"},{t:"hotset boundary",c:"green"}],
+      a:`
+<div class="a-text">Ya, ada periode overlap dimana segment yang sama ada di <strong>keduanya</strong> — local disk dan MinIO. Ini terjadi antara waktu upload selesai dan waktu local deletion (hotset.ms expired).</div>
+<div class="code">
+<span class="cc">## Timeline untuk segment dengan base offset 0:</span><br>
+<br>
+<span class="cv">T+0h</span>: Segment di-roll, data ada di local disk<br>
+<span class="cv">T+0.5h</span>: <span class="ck">Upload ke MinIO selesai</span> — data ada di local DAN MinIO (OVERLAP)<br>
+<span class="cv">T+1h</span>: <span class="ca">hotset.ms expired</span> — local segment dihapus<br>
+<span class="cv">T+1h+</span>: Data hanya ada di MinIO
+</div>
+<div class="a-text">Selama periode overlap, broker <strong>selalu prioritaskan local</strong>:</div>
+<div class="code">
+<span class="cc">// Pseudo-code logika broker:</span><br>
+if (offset in localSegments) {<br>
+&nbsp;&nbsp;return <span class="cv">fetchFromLocalDisk</span>(offset); <span class="cc">// selalu ini dulu</span><br>
+} else if (offset in remoteSegments) {<br>
+&nbsp;&nbsp;return <span class="cv">streamFromMinIO</span>(offset);<br>
+} else {<br>
+&nbsp;&nbsp;throw <span class="cr">OffsetOutOfRangeException</span>;<br>
+}
+</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> Prioritas local ini masuk akal: data local hampir pasti ada di page cache (sudah pernah dibaca/ditulis), sehingga akses sangat cepat. Mengakses MinIO untuk data yang sudah ada di local adalah pemborosan bandwidth dan latency.</div>`
+    },
+    {
+      id:"D3", cat:["fetch"],
+      q:"Apakah historical consumer yang baca data dari MinIO bisa mempengaruhi RT consumer?",
+      tags:[{t:"isolation",c:"green"},{t:"thread model",c:"cyan"},{t:"non-blocking",c:"amber"}],
+      a:`
+<div class="a-text">Ini adalah salah satu keunggulan utama Tiered Storage. <strong>Jawabannya: TIDAK bisa saling mempengaruhi</strong>, karena path-nya benar-benar terpisah:</div>
+<div class="a-block">
+<div class="a-block-label">THREAD MODEL KAFKA BROKER</div>
+<div class="a-block-body">
+<div class="code">
+<span class="cc">Network Threads (shared, jumlah = num.network.threads):</span><br>
+<span class="cv">  Thread-1:</span> Handle RT consumer fetch → page cache → socket (non-blocking, microseconds)<br>
+<span class="cv">  Thread-2:</span> Handle producer write → ISR ack (non-blocking)<br>
+<span class="cv">  Thread-3:</span> Handle RT consumer → page cache → socket<br>
+<br>
+<span class="cc">Tiered Fetch Threads (dedicated, terpisah):</span><br>
+<span class="ck">  TierFetch-1:</span> HTTP GET dari MinIO → in-memory buffer → consumer socket<br>
+<span class="ck">  TierFetch-2:</span> HTTP GET dari MinIO → in-memory buffer → consumer socket<br>
+<br>
+<span class="cc">Tier Archiver Threads (background upload):</span><br>
+<span class="ca">  TierArchiver:</span> Upload rolled segments ke MinIO (background, low priority)
+</div>
+</div>
+</div>
+<div class="a-text">Sebelum Tiered Storage (Kafka tradisional), fetch data dari disk yang tidak ada di page cache menggunakan network thread yang sama dengan RT consumer — inilah yang menyebabkan <strong>noisy neighbor problem</strong>. Dengan Tiered Storage, isolation ini solved.</div>
+<div class="a-block">
+<div class="a-block-label">KONFIGURASI TIERED FETCH THREADS</div>
+<div class="a-block-body">
+<div class="code">
+<span class="ck">confluent.tier.fetcher.num.threads</span>=<span class="cv">4</span>  <span class="cc"># default: 4 dedicated threads untuk historical fetch</span><br>
+<span class="cc"># Tambah jika banyak historical consumer concurrent</span>
+</div>
+</div>
+</div>`
+    },
+    {
+      id:"D4", cat:["fetch"],
+      q:"Consumer reset offset ke awal (offset = 0). Sebagian data sudah di MinIO. Apa yang terjadi?",
+      tags:[{t:"offset reset",c:"amber"},{t:"replay from beginning",c:"cyan"},{t:"large replay",c:"rose"}],
+      a:`
+<div class="scenario">
+<div class="scenario-title">SCENARIO: Topic 'events' punya 1 tahun data. 11 bulan di MinIO, 1 bulan di local hotset. Consumer group reset ke offset 0 untuk full replay.</div>
+</div>
+<div class="flow-steps">
+<div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><div class="flow-step-title">Consumer kirim FetchRequest offset=0</div><div class="flow-step-desc">Broker cek logical view: offset 0 ada di MinIO (segment paling lama). Broker spawn tier-fetch thread.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><div class="flow-step-title">Tier-fetch thread HTTP GET ke MinIO</div><div class="flow-step-desc">Download segment file dari MinIO, stream ke in-memory buffer. Kecepatan tergantung network bandwidth ke MinIO dan ukuran segment.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-body"><div class="flow-step-title">Data dikirim ke consumer, lalu discarded</div><div class="flow-step-desc">Data TIDAK disimpan ulang ke local disk broker. Consumer proses data, lalu consumer commit offset-nya, lanjut request batch berikutnya.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">4</div><div class="flow-step-body"><div class="flow-step-title">Ulang untuk setiap segment...</div><div class="flow-step-desc">Proses ini diulang untuk setiap segment yang ada di MinIO. Ini bisa sangat lama untuk 11 bulan data.</div></div></div>
+<div class="flow-step"><div class="flow-step-num">5</div><div class="flow-step-body"><div class="flow-step-title">Masuk ke local hotset → cepat lagi</div><div class="flow-step-desc">Setelah melewati semua data di MinIO, consumer masuk ke hotset (local). Kembali ke page cache path yang cepat.</div></div></div>
+</div>
+<div class="alert alert-warn"><span class="alert-icon">⚠</span> <strong>Full replay dari remote sangat lambat.</strong> Throughput dibatasi oleh: (1) network bandwidth broker ↔ MinIO, (2) jumlah tier-fetch threads, (3) MinIO read throughput. Untuk use case replay besar, pertimbangkan dedicated consumer dan expect 10-100x lebih lambat dari local read.</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> Data yang di-fetch dari MinIO <strong>tidak akan di-cache di broker</strong> setelah dikirim ke consumer. Jika ada 5 consumer group yang semuanya replay dari offset 0, MinIO akan di-hit 5x untuk segment yang sama. Pertimbangkan MinIO caching layer (seperti Alluxio) jika ini sering terjadi.</div>`
+    },
+  ]
+},
+
+// ─────────────────────────────────────────
+// SECTION E: CONFIG & TUNING
+// ─────────────────────────────────────────
+{
+  section:"E", sectionName:"Config & Tuning", sectionSub:"PARAMETERS · PERFORMANCE · BEST PRACTICES",
+  items:[
+    {
+      id:"E1", cat:["config"],
+      q:"Berapa optimal nilai hotset.ms? Trade-off apa yang perlu dipertimbangkan?",
+      tags:[{t:"hotset.ms",c:"cyan"},{t:"tuning",c:"amber"},{t:"trade-off",c:"green"}],
+      a:`
+<div class="a-text">Nilai <em>hotset.ms</em> menentukan berapa lama segment tetap di local disk setelah berhasil di-tier ke MinIO. Ini adalah <strong>balance antara beberapa faktor</strong>:</div>
+<table class="cmp-table"><thead><tr><th>Faktor</th><th>Hotset KECIL (mis. 15 menit)</th><th>Hotset BESAR (mis. 24 jam)</th></tr></thead>
+<tbody>
+<tr><td>Disk usage broker</td><td>✅ Minimal</td><td>⚠️ Besar</td></tr>
+<tr><td>Risk jika MinIO temp down</td><td>⚠️ Tinggi (disk cepat penuh)</td><td>✅ Lebih banyak buffer</td></tr>
+<tr><td>Kecepatan consumer replay recent</td><td>⚠️ Data mungkin sudah di MinIO</td><td>✅ Masih di local/page cache</td></tr>
+<tr><td>Akses audit log N jam lalu</td><td>⚠️ Harus ke MinIO</td><td>✅ Masih di local</td></tr>
+<tr><td>Cost storage broker</td><td>✅ Hemat</td><td>⚠️ Mahal (disk premium)</td></tr>
+</tbody></table>
+<div class="a-block">
+<div class="a-block-label">FORMULA REKOMENDASI</div>
+<div class="a-block-body">
+<div class="code">
+<span class="cc"># Hitung berapa lama data "sering diakses":</span><br>
+<span class="cc"># Untuk payment system: biasanya 1-4 jam terakhir yang paling sering diakses</span><br>
+<span class="cc"># Untuk analytics: mungkin 24 jam (daily jobs)</span><br>
+<br>
+<span class="cc"># Minimum recommended:</span><br>
+<span class="ck">confluent.tier.local.hotset.ms</span> = max(<br>
+&nbsp;&nbsp;<span class="cv">expected_replay_window_ms</span>,<br>
+&nbsp;&nbsp;<span class="cv">minio_sla_rto_ms</span> × <span class="cv">2</span>  <span class="cc"># buffer 2x MinIO recovery time</span><br>
+)
+</div>
+</div>
+</div>`
+    },
+    {
+      id:"E2", cat:["config"],
+      q:"Bagaimana mengkonfigurasi segment size yang optimal untuk tiering?",
+      tags:[{t:"segment.bytes",c:"cyan"},{t:"segment.ms",c:"amber"},{t:"upload efficiency",c:"green"}],
+      a:`
+<div class="a-text">Ukuran segment berpengaruh langsung ke <strong>efisiensi tiering</strong>. Segment yang terlalu kecil = banyak S3 API calls. Segment terlalu besar = latency tinggi sebelum data bisa di-tier.</div>
+<div class="code">
+<span class="cc"># Default Kafka (tidak optimal untuk tiering):</span><br>
+<span class="ck">segment.bytes</span>=<span class="cv">1073741824</span>   <span class="cc"># 1GB — terlalu besar untuk tiering aktif</span><br>
+<span class="ck">segment.ms</span>=<span class="cv">604800000</span>       <span class="cc"># 7 hari — terlalu lama</span><br>
+<br>
+<span class="cc"># RECOMMENDED untuk high-throughput tiered topic:</span><br>
+<span class="ck">segment.bytes</span>=<span class="cv">268435456</span>    <span class="cc"># 256MB — balance antara overhead dan latency</span><br>
+<span class="ck">segment.ms</span>=<span class="cv">3600000</span>         <span class="cc"># 1 jam — roll setidaknya setiap jam</span><br>
+<br>
+<span class="cc"># RECOMMENDED untuk low-throughput tiered topic:</span><br>
+<span class="ck">segment.bytes</span>=<span class="cv">67108864</span>     <span class="cc"># 64MB</span><br>
+<span class="ck">segment.ms</span>=<span class="cv">900000</span>          <span class="cc"># 15 menit — supaya tidak menunggu terlalu lama</span>
+</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> <strong>Rule of thumb:</strong> Untuk MinIO, S3 multipart upload optimal pada part size 5-100MB. Segment 64-512MB adalah sweet spot. Segment < 10MB berarti terlalu banyak API calls. Segment > 1GB berarti data harus nunggu lama sebelum bisa di-tier.</div>`
+    },
+    {
+      id:"E3", cat:["config"],
+      q:"Apakah tiering mempengaruhi producer throughput? Bagaimana cara isolasinya?",
+      tags:[{t:"producer impact",c:"cyan"},{t:"archiver threads",c:"amber"},{t:"isolation",c:"green"}],
+      a:`
+<div class="a-text">Secara teori, tiering (upload ke MinIO) berjalan di <strong>background thread terpisah</strong> dari producer write path. Namun ada beberapa indirect effects:</div>
+<table class="cmp-table"><thead><tr><th>Komponen</th><th>Ada pengaruh?</th><th>Mitigasi</th></tr></thead>
+<tbody>
+<tr><td>Producer write latency</td><td>✅ Tidak ada</td><td>—</td></tr>
+<tr><td>Producer throughput</td><td>Indirect: disk I/O contention</td><td>Pisahkan log.dirs ke disk berbeda dari OS</td></tr>
+<tr><td>Network bandwidth</td><td>⚠️ Upload ke MinIO pakai bandwidth</td><td>Throttle archiver, atau dedikasikan NIC</td></tr>
+<tr><td>CPU usage broker</td><td>Minimal (I/O bound, bukan CPU)</td><td>—</td></tr>
+</tbody></table>
+<div class="code">
+<span class="cc"># Throttle tiering bandwidth (jika perlu):</span><br>
+<span class="ck">confluent.tier.archiver.bandwidth.throttle</span>=<span class="cv">104857600</span>  <span class="cc"># 100MB/s max</span><br>
+<br>
+<span class="cc"># Jumlah archiver threads (lebih banyak = lebih cepat tier tapi lebih banyak resource):</span><br>
+<span class="ck">confluent.tier.archiver.num.threads</span>=<span class="cv">2</span>  <span class="cc"># default: 2 per broker</span>
+</div>`
+    },
+  ]
+},
+
+// ─────────────────────────────────────────
+// SECTION F: SECURITY & RBAC SCENARIOS
+// ─────────────────────────────────────────
+{
+  section:"F", sectionName:"Security & RBAC Scenarios", sectionSub:"ACCESS CONTROL · CREDENTIALS · ENCRYPTION",
+  items:[
+    {
+      id:"F1", cat:["rbac","security"],
+      q:"Apakah consumer perlu credential MinIO untuk baca data historis?",
+      tags:[{t:"consumer access",c:"cyan"},{t:"credential isolation",c:"green"},{t:"proxy pattern",c:"amber"}],
+      a:`
+<div class="a-text"><strong>Tidak.</strong> Consumer <em>tidak pernah</em> berkomunikasi langsung dengan MinIO. Broker bertindak sebagai <strong>proxy/gateway</strong> antara consumer dan object store.</div>
+<div class="code">
+<span class="cc">## Flow dengan perspektif credentials:</span><br>
+<br>
+Consumer → <span class="ck">[Kafka API + SASL auth]</span> → Broker<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓ (broker check RBAC: apakah user ini punya READ?)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Broker → <span class="ca">[MinIO credential dari server.properties]</span> → MinIO<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MinIO → data → Broker → Consumer
+</div>
+<div class="alert alert-ok"><span class="alert-icon">✓</span> <strong>Security benefit:</strong> MinIO credentials (access key / secret key) hanya perlu diketahui oleh broker. Consumer tidak perlu dan tidak boleh tahu MinIO credentials. Ini menyederhanakan credential management dan mengurangi attack surface.</div>
+<div class="a-block">
+<div class="a-block-label">IMPLIKASI RBAC</div>
+<div class="a-block-body">
+<div class="a-text" style="margin:0;">Consumer yang punya <code class="cv">READ</code> permission pada topic akan otomatis bisa membaca semua data — baik dari hotset maupun dari MinIO. Tidak ada permission tambahan yang diperlukan di level MinIO untuk consumer. <strong>Authorization decision dibuat sepenuhnya di broker layer.</strong></div>
+</div>
+</div>`
+    },
+    {
+      id:"F2", cat:["rbac","security"],
+      q:"Bagaimana enkripsi data di Tiered Storage — in-transit dan at-rest?",
+      tags:[{t:"encryption",c:"violet"},{t:"TLS",c:"cyan"},{t:"SSE",c:"amber"}],
+      a:`
+<div class="a-block">
+<div class="a-block-label">IN-TRANSIT ENCRYPTION</div>
+<div class="a-block-body">
+<table class="cmp-table"><thead><tr><th>Connection</th><th>Enkripsi</th><th>Konfigurasi</th></tr></thead>
+<tbody>
+<tr><td>Producer → Broker</td><td>TLS 1.2/1.3</td><td>listeners=SSL://... di broker</td></tr>
+<tr><td>Consumer → Broker</td><td>TLS 1.2/1.3</td><td>security.protocol=SSL di consumer</td></tr>
+<tr><td>Broker → Broker (replication)</td><td>TLS via mTLS</td><td>security.inter.broker.protocol=SSL</td></tr>
+<tr><td><strong>Broker → MinIO (tiering upload)</strong></td><td><strong>HTTPS (TLS)</strong></td><td><code class="ck">confluent.tier.s3.endpoint.override=https://minio:9443</code></td></tr>
+<tr><td><strong>Broker → MinIO (tier fetch)</strong></td><td><strong>HTTPS (TLS)</strong></td><td>Sama dengan di atas</td></tr>
+</tbody></table>
+</div>
+</div>
+<div class="a-block">
+<div class="a-block-label">AT-REST ENCRYPTION (MinIO Side)</div>
+<div class="a-block-body">
+<div class="code">
+<span class="cc"># Option 1: SSE-S3 (MinIO managed keys):</span><br>
+<span class="ck">MINIO_KMS_SECRET_KEY</span>=<span class="cv">my-minio-key:$(openssl rand -base64 32)</span><br>
+<span class="cc"># Semua object otomatis terenkripsi dengan AES-256</span><br>
+<br>
+<span class="cc"># Option 2: SSE-KMS (external KMS, lebih aman):</span><br>
+<span class="ck">MINIO_KMS_KES_ENDPOINT</span>=<span class="cv">https://kes.internal:7373</span><br>
+<span class="ck">MINIO_KMS_KES_CERT_FILE</span>=<span class="cv">/etc/kes/client.crt</span><br>
+<span class="ck">MINIO_KMS_KES_KEY_FILE</span>=<span class="cv">/etc/kes/client.key</span><br>
+<span class="ck">MINIO_KMS_KES_KEY_NAME</span>=<span class="cv">kafka-tiered-storage-key</span><br>
+<br>
+<span class="cc"># Confluent sisi: set SSE header saat upload:</span><br>
+<span class="ck">confluent.tier.s3.sse.algorithm</span>=<span class="cv">aws:kms</span>  <span class="cc"># atau AES256</span>
+</div>
+</div>
+</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> Data di .log file sudah terkompresi (Snappy/LZ4/ZSTD) sebelum dienkripsi. Kompresi + enkripsi = efisiensi storage + security. Order yang benar: compress dulu, encrypt kemudian.</div>`
+    },
+    {
+      id:"F3", cat:["rbac"],
+      q:"Bagaimana cara membatasi agar hanya tim tertentu yang bisa mengaktifkan tiering?",
+      tags:[{t:"RBAC config",c:"cyan"},{t:"ClusterAdmin",c:"violet"},{t:"access control",c:"green"}],
+      a:`
+<div class="a-text">Aktivasi Tiered Storage di cluster level dan konfigurasi object store credentials adalah operasi <strong>ClusterAdmin</strong>. Ini dikontrol via Confluent RBAC (MDS).</div>
+<div class="code">
+<span class="cc"># 1. Beri role ClusterAdmin ke tim infra (bisa aktifkan tiering):</span><br>
+<span class="ck">confluent iam rolebinding create</span> \<br>
+&nbsp;&nbsp;<span class="ck">--principal</span> <span class="cv">User:infra-team-sa</span> \<br>
+&nbsp;&nbsp;<span class="ck">--role</span> <span class="cv">ClusterAdmin</span> \<br>
+&nbsp;&nbsp;<span class="ck">--kafka-cluster-id</span> <span class="cv">lkc-xxxxx</span><br>
+<br>
+<span class="cc"># 2. Beri role ResourceOwner ke tim dev (bisa enable tiering per-topic):</span><br>
+<span class="ck">confluent iam rolebinding create</span> \<br>
+&nbsp;&nbsp;<span class="ck">--principal</span> <span class="cv">User:dev-team-sa</span> \<br>
+&nbsp;&nbsp;<span class="ck">--role</span> <span class="cv">ResourceOwner</span> \<br>
+&nbsp;&nbsp;<span class="ck">--resource</span> <span class="cv">Topic:payments</span> \<br>
+&nbsp;&nbsp;<span class="ck">--kafka-cluster-id</span> <span class="cv">lkc-xxxxx</span><br>
+<br>
+<span class="cc"># 3. Tim dev enable tiering di topic mereka:</span><br>
+<span class="ck">kafka-configs --alter</span> \<br>
+&nbsp;&nbsp;<span class="ck">--topic</span> <span class="cv">payments</span> \<br>
+&nbsp;&nbsp;<span class="ck">--add-config</span> <span class="cv">'confluent.tier.enable=true,confluent.tier.local.hotset.ms=3600000'</span>
+</div>
+<div class="alert alert-info"><span class="alert-icon">ℹ</span> <strong>Separation of concerns:</strong> Tim Infra mengkonfigurasi cluster-level tiering (broker config, MinIO credentials). Tim Dev mengaktifkan tiering per-topic sesuai kebutuhan mereka — tanpa perlu tahu detail infrastruktur MinIO.</div>`
+    },
+  ]
+},
+
+];
+
+// ══════════════════════════════════════════════════════
+// RENDER ENGINE
+// ══════════════════════════════════════════════════════
+let allItems = [];
+let currentCat = 'all';
+let currentSearch = '';
+
+function buildDOM() {
+  const container = document.getElementById('mainContainer');
+  let html = '';
+  let totalQ = 0;
+
+  faqData.forEach(section => {
+    html += `<div class="section-header" data-section="${section.section}">
+      <div class="section-letter">${section.section}</div>
+      <div class="section-title-wrap">
+        <div class="section-name">${section.sectionName}</div>
+        <div class="section-sub">${section.sectionSub}</div>
+      </div>
+    </div>`;
+
+    section.items.forEach(item => {
+      totalQ++;
+      allItems.push({...item, sectionKey: section.section});
+      const tagHtml = item.tags.map(t =>
+        `<span class="faq-tag" style="border-color:var(--${t.c});color:var(--${t.c});background:rgba(var(--${t.c}-raw,0,0,0),0.05)">${t.t}</span>`
+      ).join('');
+
+      html += `<div class="faq-card" data-id="${item.id}" data-cat="${item.cat.join(' ')}" data-section="${item.id[0]}">
+        <div class="faq-q" onclick="toggleFAQ('${item.id}')">
+          <div class="faq-q-num">${item.id}</div>
+          <div class="faq-q-text">
+            ${item.q}
+            <div class="faq-q-tags">${tagHtml}</div>
+          </div>
+          <div class="faq-chevron">▾</div>
+        </div>
+        <div class="faq-a" id="ans-${item.id}">${item.a}</div>
+      </div>`;
+    });
+  });
+
+  container.innerHTML = html;
+  document.getElementById('headerCount').textContent = `${totalQ} questions`;
+}
+
+function toggleFAQ(id) {
+  const card = document.querySelector(`[data-id="${id}"]`);
+  const isOpen = card.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.faq-card.open').forEach(c => c.classList.remove('open'));
+  if (!isOpen) card.classList.add('open');
+}
+
+function filterCat(cat, btn) {
+  currentCat = cat;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function doSearch(val) {
+  currentSearch = val.toLowerCase().trim();
+  applyFilters();
+}
+
+function applyFilters() {
+  let visible = 0;
+  const cards = document.querySelectorAll('.faq-card');
+  const sectionHeaders = document.querySelectorAll('.section-header');
+
+  // Track which sections have visible items
+  const sectionVisible = {};
+
+  cards.forEach(card => {
+    const cats = card.dataset.cat.split(' ');
+    const catMatch = currentCat === 'all' || cats.includes(currentCat);
+    const searchMatch = !currentSearch ||
+      card.querySelector('.faq-q-text').textContent.toLowerCase().includes(currentSearch) ||
+      (card.querySelector('.faq-a') && card.querySelector('.faq-a').textContent.toLowerCase().includes(currentSearch));
+
+    const show = catMatch && searchMatch;
+    card.style.display = show ? '' : 'none';
+    if (show) {
+      visible++;
+      sectionVisible[card.dataset.section] = true;
+
+      // Highlight search terms
+      if (currentSearch) {
+        const qEl = card.querySelector('.faq-q-text');
+        qEl.innerHTML = highlightText(qEl.textContent, currentSearch);
+      } else {
+        const qEl = card.querySelector('.faq-q-text');
+        const item = allItems.find(i => i.id === card.dataset.id);
+        if (item) {
+          const tagHtml = item.tags.map(t =>
+            `<span class="faq-tag" style="border-color:var(--${t.c});color:var(--${t.c})">${t.t}</span>`
+          ).join('');
+          qEl.innerHTML = item.q + `<div class="faq-q-tags">${tagHtml}</div>`;
+        }
+      }
+    }
+  });
+
+  // Show/hide section headers
+  sectionHeaders.forEach(h => {
+    h.style.display = sectionVisible[h.dataset.section] ? '' : 'none';
+  });
+
+  document.getElementById('no-results').style.display = visible === 0 ? 'block' : 'none';
+  document.getElementById('headerCount').textContent = `${visible} questions`;
+}
+
+function highlightText(text, query) {
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return text.replace(re, '<mark>$1</mark>');
+}
+
+// Scroll to top button
+window.addEventListener('scroll', () => {
+  document.getElementById('scrollTop').classList.toggle('show', window.scrollY > 400);
+});
+
+// Init
+buildDOM();
+
+// Keyboard shortcut: / to focus search
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    document.getElementById('searchInput').focus();
+  }
+  if (e.key === 'Escape') {
+    document.getElementById('searchInput').blur();
+    document.getElementById('searchInput').value = '';
+    doSearch('');
+  }
+});
+</script>
+</body>
+</html>
