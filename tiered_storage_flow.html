@@ -409,6 +409,19 @@
   .nav-pill:hover { border-color: var(--cyan); color: var(--cyan); }
   .nav-pill.active { background: var(--cyan); color: #000; border-color: var(--cyan); font-weight: 700; }
 
+  /* hamburger */
+  .nav-toggle{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px;background:none;border:none;}
+  .nav-toggle span{display:block;width:22px;height:2px;background:var(--muted);border-radius:2px;transition:all 0.3s;}
+  .nav-toggle.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+  .nav-toggle.open span:nth-child(2){opacity:0;}
+  .nav-toggle.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+  .nav-mobile{display:none;position:fixed;top:52px;left:0;right:0;z-index:199;
+    background:rgba(2,8,23,0.98);backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--glass-border);padding:1rem 2rem;
+    flex-direction:column;gap:0.5rem;}
+  .nav-mobile.open{display:flex;}
+  .nav-mobile .nav-pill{width:100%;text-align:center;}
+
   /* ── Footer ── */
   footer {
     text-align: center;
@@ -423,8 +436,19 @@
 
   /* Responsive */
   @media (max-width: 768px) {
-    .stats-row { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
     .steps-grid { grid-template-columns: 1fr 1fr; }
+    .site-nav-brand { display: none; }
+    .site-nav-links { display: none; }
+    .nav-toggle { display: flex; }
+    .controls { flex-wrap: wrap; gap: 0.6rem; justify-content: center; }
+    .flow-canvas { overflow-x: auto; }
+  }
+  @media (max-width: 500px) {
+    .stats-row { grid-template-columns: 1fr; }
+    .steps-grid { grid-template-columns: 1fr; }
+    .wrapper { padding: 1rem; }
+    h1 { font-size: 2rem; }
   }
 </style>
 </head>
@@ -435,10 +459,20 @@
   <div class="site-nav-brand">TIERED STORAGE DOCS</div>
   <div class="site-nav-links">
     <a href="index.html" class="nav-pill">🏠 Home</a>
-    <a href="tiered_storage_flow.html" class="nav-pill active">⚡ Flow Diagram</a>
+    <a href="project_summary.html" class="nav-pill">📋 Summary</a>
+    <a href="tiered_storage_flow.html" class="nav-pill active">⚡ Flow</a>
     <a href="tiered_storage_faq.html" class="nav-pill">❓ FAQ</a>
   </div>
+  <button class="nav-toggle" id="navToggle" aria-label="Menu" onclick="toggleNav()">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
+<div class="nav-mobile" id="navMobile">
+  <a href="index.html" class="nav-pill">🏠 Home</a>
+  <a href="project_summary.html" class="nav-pill">📋 Summary</a>
+  <a href="tiered_storage_flow.html" class="nav-pill active">⚡ Flow</a>
+  <a href="tiered_storage_faq.html" class="nav-pill">❓ FAQ</a>
+</div>
 
 <div class="bg-layer">
   <div class="orb orb1"></div>
@@ -942,6 +976,19 @@ const modeObserver = setInterval(updateNodePulse, 2000);
 
 // Default show write mode active
 document.getElementById('btn-write').classList.add('active');
+
+function toggleNav(){
+  document.getElementById('navToggle').classList.toggle('open');
+  document.getElementById('navMobile').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const nav = document.getElementById('navMobile');
+  const btn = document.getElementById('navToggle');
+  if(nav.classList.contains('open') && !nav.contains(e.target) && !btn.contains(e.target)){
+    nav.classList.remove('open');
+    btn.classList.remove('open');
+  }
+});
 </script>
 </body>
 </html>

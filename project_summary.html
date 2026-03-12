@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Summary — Confluent Tiered Storage</title>
+<meta name="description" content="Ringkasan project Confluent Tiered Storage on-premise: arsitektur, komponen kunci, problem statement, dan resources.">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg0:#020817; --bg1:#0a1628; --bg2:#0f2040;
+    --cyan:#00d4ff; --green:#00ffb3; --orange:#ff9f1c;
+    --red:#ff4d6d; --purple:#c77dff; --amber:#fbbf24;
+    --white:#e8f4fd; --muted:#4a7fa5;
+    --glass:rgba(255,255,255,0.04);
+    --glass-border:rgba(255,255,255,0.10);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg0);color:var(--white);font-family:'Outfit',sans-serif;min-height:100vh;overflow-x:hidden;}
+
+  /* ── Background ── */
+  .bg-layer{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;}
+  .orb{position:absolute;border-radius:50%;filter:blur(130px);opacity:0.13;animation:orbFloat 14s ease-in-out infinite;}
+  .orb1{width:700px;height:700px;background:var(--orange);top:-200px;right:-200px;animation-delay:0s;}
+  .orb2{width:500px;height:500px;background:var(--cyan);bottom:-100px;left:-150px;animation-delay:-6s;}
+  .orb3{width:350px;height:350px;background:var(--purple);top:45%;left:45%;animation-delay:-10s;}
+  @keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(20px,-30px) scale(1.06);}}
+  .grid-overlay{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:linear-gradient(rgba(0,212,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.025) 1px,transparent 1px);
+    background-size:60px 60px;}
+
+  /* ── Nav ── */
+  .site-nav{
+    position:sticky;top:0;z-index:200;
+    background:rgba(2,8,23,0.92);backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--glass-border);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 2rem;height:52px;
+  }
+  .site-nav-brand{font-family:'Space Mono',monospace;font-size:0.62rem;letter-spacing:0.18em;color:var(--cyan);display:flex;align-items:center;gap:0.6rem;}
+  .site-nav-brand::before{content:'';width:20px;height:1px;background:var(--cyan);}
+  .site-nav-links{display:flex;gap:0.4rem;align-items:center;}
+  .nav-pill{font-family:'Space Mono',monospace;font-size:0.62rem;letter-spacing:0.08em;padding:0.35rem 0.9rem;border-radius:999px;border:1px solid var(--glass-border);background:transparent;color:var(--muted);text-decoration:none;transition:all 0.2s;white-space:nowrap;}
+  .nav-pill:hover{border-color:var(--cyan);color:var(--cyan);}
+  .nav-pill.active{background:var(--orange);color:#000;border-color:var(--orange);font-weight:700;}
+
+  /* Hamburger */
+  .nav-toggle{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px;background:none;border:none;}
+  .nav-toggle span{display:block;width:22px;height:2px;background:var(--muted);border-radius:2px;transition:all 0.3s;}
+  .nav-toggle.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+  .nav-toggle.open span:nth-child(2){opacity:0;}
+  .nav-toggle.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+  .nav-mobile{display:none;position:fixed;top:52px;left:0;right:0;z-index:199;
+    background:rgba(2,8,23,0.98);backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--glass-border);padding:1rem 2rem;
+    flex-direction:column;gap:0.5rem;}
+  .nav-mobile.open{display:flex;}
+  .nav-mobile .nav-pill{width:100%;text-align:center;}
+
+  /* ── Layout ── */
+  .wrapper{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:2rem;}
+
+  /* ── Hero ── */
+  .hero{text-align:center;padding:4rem 1rem 3rem;}
+  .badge{display:inline-block;font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:0.2em;color:var(--orange);border:1px solid rgba(255,159,28,0.35);padding:0.3rem 1.1rem;border-radius:999px;background:rgba(255,159,28,0.08);margin-bottom:1.5rem;}
+  .hero h1{font-size:clamp(2rem,5vw,3.8rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,var(--white) 0%,var(--orange) 55%,var(--purple) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:1rem;}
+  .hero-sub{color:var(--muted);font-size:1rem;font-weight:300;max-width:580px;margin:0 auto 2rem;line-height:1.7;}
+
+  /* ── CTA ── */
+  .cta-bar{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:3rem;}
+  .cta-btn{font-family:'Space Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;padding:0.75rem 1.8rem;border-radius:999px;text-decoration:none;border:1px solid;transition:all 0.25s;display:flex;align-items:center;gap:0.5rem;font-weight:700;cursor:pointer;}
+  .cta-primary{background:var(--orange);color:#000;border-color:var(--orange);}
+  .cta-primary:hover{background:transparent;color:var(--orange);}
+  .cta-secondary{background:transparent;color:var(--cyan);border-color:rgba(0,212,255,0.4);}
+  .cta-secondary:hover{background:rgba(0,212,255,0.1);border-color:var(--cyan);}
+
+  /* ── Section label ── */
+  .section-label{font-family:'Space Mono',monospace;font-size:0.62rem;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;margin-bottom:1.2rem;}
+
+  /* ── Split ── */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:2.5rem;}
+  .split-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:1.8rem;backdrop-filter:blur(20px);}
+  .split-card.problem{border-color:rgba(255,77,109,0.25);}
+  .split-card.solution{border-color:rgba(0,255,179,0.25);}
+  .split-header{display:flex;align-items:center;gap:0.75rem;margin-bottom:1.2rem;}
+  .split-icon{font-size:1.8rem;}
+  .split-title{font-size:1rem;font-weight:700;}
+  .split-title.red{color:var(--red);}
+  .split-title.green{color:var(--green);}
+  .split-list{list-style:none;display:flex;flex-direction:column;gap:0.55rem;}
+  .split-list li{font-size:0.85rem;color:rgba(232,244,253,0.75);line-height:1.55;display:flex;gap:0.6rem;}
+  .split-list li::before{content:attr(data-icon);flex-shrink:0;}
+
+  /* ── Stats ── */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.5rem 0;}
+  .stat-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:16px;padding:1.4rem;text-align:center;}
+  .stat-num{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--orange),var(--amber));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .stat-label{font-size:0.73rem;color:var(--muted);margin-top:0.3rem;line-height:1.4;}
+
+  /* ── Architecture ── */
+  .arch-box{background:var(--glass);border:1px solid var(--glass-border);border-radius:20px;padding:2rem;backdrop-filter:blur(20px);margin-bottom:2.5rem;}
+  .arch-flow{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:0.75rem;margin:1.5rem 0;}
+  .arch-node{display:flex;flex-direction:column;align-items:center;gap:0.4rem;background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:14px;padding:1rem 1.3rem;min-width:90px;transition:all 0.2s;text-align:center;}
+  .arch-node:hover{transform:translateY(-3px);}
+  .arch-node.cyan{border-color:rgba(0,212,255,0.3);}
+  .arch-node.green{border-color:rgba(0,255,179,0.3);}
+  .arch-node.orange{border-color:rgba(255,159,28,0.3);}
+  .arch-node.purple{border-color:rgba(199,125,255,0.3);}
+  .arch-node.muted{border-color:rgba(74,127,165,0.3);}
+  .an-icon-wrap{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;}
+  .arch-node.cyan .an-icon-wrap{background:rgba(0,212,255,0.12);}
+  .arch-node.green .an-icon-wrap{background:rgba(0,255,179,0.1);}
+  .arch-node.orange .an-icon-wrap{background:rgba(255,159,28,0.1);}
+  .arch-node.purple .an-icon-wrap{background:rgba(199,125,255,0.1);}
+  .arch-node.muted .an-icon-wrap{background:rgba(74,127,165,0.1);}
+  .an-label{font-size:0.7rem;font-weight:700;line-height:1.2;color:var(--white);}
+  .arch-node.cyan .an-label{color:var(--cyan);}
+  .arch-node.green .an-label{color:var(--green);}
+  .arch-node.orange .an-label{color:var(--orange);}
+  .arch-node.purple .an-label{color:var(--purple);}
+  .arch-node.muted .an-label{color:var(--muted);}
+  .an-sub{font-size:0.58rem;color:var(--muted);font-family:'Space Mono',monospace;}
+  .arch-arrow{font-size:1.1rem;color:var(--muted);flex-shrink:0;}
+
+  /* Config hint */
+  .config-hint{background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:0.8rem 1rem;font-size:0.78rem;color:rgba(232,244,253,0.7);line-height:1.7;overflow-x:auto;}
+  code{font-family:'Space Mono',monospace;font-size:0.72rem;}
+
+  /* ── Components ── */
+  .comp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:2.5rem;}
+  .comp-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:18px;padding:1.5rem;backdrop-filter:blur(20px);transition:all 0.25s;}
+  .comp-card:hover{transform:translateY(-3px);border-color:var(--comp-color,var(--cyan));box-shadow:0 0 24px color-mix(in srgb,var(--comp-color,var(--cyan)) 15%,transparent);}
+  .comp-icon{font-size:1.6rem;margin-bottom:0.8rem;}
+  .comp-title{font-size:0.9rem;font-weight:700;margin-bottom:0.4rem;color:var(--comp-color,var(--white));}
+  .comp-desc{font-size:0.78rem;color:var(--muted);line-height:1.55;}
+  .comp-tag{display:inline-block;font-family:'Space Mono',monospace;font-size:0.55rem;letter-spacing:0.1em;padding:0.15rem 0.6rem;border-radius:999px;border:1px solid;margin-top:0.6rem;color:var(--comp-color,var(--cyan));border-color:var(--comp-color,var(--cyan));opacity:0.7;}
+
+  /* ── Resources ── */
+  .resources{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem;margin-bottom:3rem;}
+  .res-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:18px;padding:1.5rem 1.8rem;text-decoration:none;color:inherit;transition:all 0.25s;display:flex;flex-direction:column;gap:0.8rem;backdrop-filter:blur(20px);}
+  .res-card:hover{border-color:var(--res-color,var(--cyan));transform:translateY(-3px);box-shadow:0 0 24px color-mix(in srgb,var(--res-color,var(--cyan)) 15%,transparent);}
+  .res-icon{font-size:1.8rem;}
+  .res-label{font-family:'Space Mono',monospace;font-size:0.58rem;letter-spacing:0.15em;color:var(--res-color,var(--cyan));}
+  .res-title{font-size:1rem;font-weight:700;}
+  .res-desc{font-size:0.78rem;color:var(--muted);line-height:1.5;flex:1;}
+  .res-cta{font-family:'Space Mono',monospace;font-size:0.62rem;color:var(--res-color,var(--cyan));}
+  .res-cta::after{content:' →';}
+
+  /* ── Footer ── */
+  footer{text-align:center;padding:2.5rem 0;font-family:'Space Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;border-top:1px solid var(--glass-border);}
+
+  /* ── Responsive ── */
+  @media(max-width:768px){
+    .site-nav-brand{display:none;}
+    .site-nav-links{display:none;}
+    .nav-toggle{display:flex;}
+    .split{grid-template-columns:1fr;}
+    .stats{grid-template-columns:1fr 1fr;}
+    .arch-flow{gap:0.5rem;}
+    .arch-node{min-width:70px;padding:0.8rem;}
+    .arch-arrow{font-size:0.9rem;}
+    .hero{padding:3rem 1rem 2rem;}
+  }
+  @media(max-width:500px){
+    .stats{grid-template-columns:1fr;}
+    .cta-bar{flex-direction:column;align-items:stretch;}
+    .cta-btn{justify-content:center;}
+    .arch-flow{flex-direction:column;}
+    .arch-arrow{transform:rotate(90deg);}
+    .wrapper{padding:1rem;}
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-layer">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+</div>
+<div class="grid-overlay"></div>
+
+<!-- Nav -->
+<nav class="site-nav">
+  <div class="site-nav-brand">TIERED STORAGE DOCS</div>
+  <div class="site-nav-links">
+    <a href="index.html" class="nav-pill">🏠 Home</a>
+    <a href="project_summary.html" class="nav-pill active">📋 Summary</a>
+    <a href="tiered_storage_flow.html" class="nav-pill">⚡ Flow</a>
+    <a href="tiered_storage_faq.html" class="nav-pill">❓ FAQ</a>
+  </div>
+  <button class="nav-toggle" id="navToggle" aria-label="Menu" onclick="toggleNav()">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="nav-mobile" id="navMobile">
+  <a href="index.html" class="nav-pill">🏠 Home</a>
+  <a href="project_summary.html" class="nav-pill active">📋 Summary</a>
+  <a href="tiered_storage_flow.html" class="nav-pill">⚡ Flow</a>
+  <a href="tiered_storage_faq.html" class="nav-pill">❓ FAQ</a>
+</div>
+
+<div class="wrapper">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="badge">PROJECT OVERVIEW · CONFLUENT PLATFORM · ZOOKEEPER MODE</div>
+    <h1>Tiered Storage<br>Project Summary</h1>
+    <p class="hero-sub">Ringkasan arsitektur, komponen, dan konsep kunci dari implementasi Confluent Tiered Storage on-premise dengan MinIO sebagai remote object store.</p>
+    <div class="cta-bar">
+      <a href="tiered_storage_confluent.pptx" download class="cta-btn cta-primary">📥 Download Presentasi (.pptx)</a>
+      <a href="tiered_storage_flow.html" class="cta-btn cta-secondary">⚡ Lihat Flow Diagram</a>
+    </div>
+  </div>
+
+  <!-- Problem vs Solution -->
+  <div class="section-label">// LATAR BELAKANG</div>
+  <div class="split">
+    <div class="split-card problem">
+      <div class="split-header">
+        <div class="split-icon">😰</div>
+        <div class="split-title red">Masalah: Kafka Tradisional</div>
+      </div>
+      <ul class="split-list">
+        <li data-icon="💸">Biaya disk premium (NVMe/SSD) sangat tinggi untuk retensi data jangka panjang.</li>
+        <li data-icon="📈">Disk broker harus di-scale seiring pertumbuhan data — tidak elastis.</li>
+        <li data-icon="🐌">Consumer data lama bersaing thread yang sama dengan RT consumer (<em>noisy neighbor</em>).</li>
+        <li data-icon="⚠️">Retensi biasanya dibatasi 7–30 hari — data harus dibuang pemanen.</li>
+        <li data-icon="🔗">Scale storage harus selalu dibarengi scale compute — tidak bisa pisah.</li>
+      </ul>
+    </div>
+    <div class="split-card solution">
+      <div class="split-header">
+        <div class="split-icon">🚀</div>
+        <div class="split-title green">Solusi: Tiered Storage</div>
+      </div>
+      <ul class="split-list">
+        <li data-icon="✅">Data lama otomatis dipindah ke object store (MinIO) yang jauh lebih murah.</li>
+        <li data-icon="✅">Disk broker hanya perlu menyimpan <em>hotset</em> — data yang sering diakses saja.</li>
+        <li data-icon="✅">Historical consumer pakai dedicated thread — RT consumer tidak pernah terganggu.</li>
+        <li data-icon="✅">Retensi data praktis unlimited — MinIO bisa scale storage secara independen.</li>
+        <li data-icon="✅">Hemat hingga ~90% biaya storage untuk topik dengan retensi panjang.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Key Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-num">~90%</div>
+      <div class="stat-label">Penghematan biaya storage historis vs disk premium</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">0ms</div>
+      <div class="stat-label">Blocking extra pada RT consumer saat historical data dibaca</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">∞</div>
+      <div class="stat-label">Masa retensi data di remote object store</div>
+    </div>
+  </div>
+
+  <!-- Architecture -->
+  <div class="section-label" style="margin-top:2rem;">// ARSITEKTUR — DATA FLOW</div>
+  <div class="arch-box">
+    <p style="font-size:0.83rem;color:var(--muted);margin-bottom:1.5rem;">Data bergerak dari Producer ke Kafka (lokal), lalu Leader secara background meng-upload rolled segment ke MinIO. Consumer membaca dari kedua sumber secara transparan.</p>
+    <div class="arch-flow">
+      <div class="arch-node cyan">
+        <div class="an-icon-wrap">🏭</div>
+        <div class="an-label">Producer</div>
+        <div class="an-sub">Any client</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node green">
+        <div class="an-icon-wrap">👑</div>
+        <div class="an-label">Leader Replica</div>
+        <div class="an-sub">Writes + uploads</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node muted">
+        <div class="an-icon-wrap">🔁</div>
+        <div class="an-label">Followers</div>
+        <div class="an-sub">ISR replication</div>
+      </div>
+      <div class="arch-arrow" style="color:var(--orange);">→</div>
+      <div class="arch-node orange">
+        <div class="an-icon-wrap">🗄️</div>
+        <div class="an-label">MinIO</div>
+        <div class="an-sub">Cold tier</div>
+      </div>
+      <div class="arch-arrow">←</div>
+      <div class="arch-node purple">
+        <div class="an-icon-wrap">🔍</div>
+        <div class="an-label">Hist Consumer</div>
+        <div class="an-sub">Separate thread</div>
+      </div>
+    </div>
+    <div class="config-hint">
+      ⚙️ <strong style="color:var(--cyan)">Konfigurasi kunci:</strong> &nbsp;
+      <code style="color:var(--green)">confluent.tier.enable=true</code> &nbsp;·&nbsp;
+      <code style="color:var(--orange)">confluent.tier.local.hotset.ms=3600000</code> &nbsp;·&nbsp;
+      <code style="color:var(--cyan)">confluent.tier.s3.endpoint.override=http://minio:9000</code>
+    </div>
+  </div>
+
+  <!-- Key Components -->
+  <div class="section-label">// KOMPONEN UTAMA</div>
+  <div class="comp-grid">
+    <div class="comp-card" style="--comp-color:var(--green);">
+      <div class="comp-icon">👑</div>
+      <div class="comp-title">Partition Leader</div>
+      <div class="comp-desc">Satu-satunya broker yang melakukan upload segment ke MinIO. Menulis metadata ke <code>_confluent-tier-state</code> setelah upload sukses.</div>
+      <div class="comp-tag">WRITE + TIER</div>
+    </div>
+    <div class="comp-card" style="--comp-color:var(--muted);">
+      <div class="comp-icon">🔁</div>
+      <div class="comp-title">Follower Replicas</div>
+      <div class="comp-desc">Mereplikasi data dari leader via ISR. Sync metadata tier dari <code>_confluent-tier-state</code>. Siap jadi leader baru jika failover.</div>
+      <div class="comp-tag">REPLICATION</div>
+    </div>
+    <div class="comp-card" style="--comp-color:var(--orange);">
+      <div class="comp-icon">📋</div>
+      <div class="comp-title">_confluent-tier-state</div>
+      <div class="comp-desc">Internal Kafka topic yang menyimpan mapping antara partition offset dan lokasi object di MinIO. Backbone dari tiered storage awareness.</div>
+      <div class="comp-tag">METADATA</div>
+    </div>
+    <div class="comp-card" style="--comp-color:var(--cyan);">
+      <div class="comp-icon">🗄️</div>
+      <div class="comp-title">MinIO Object Store</div>
+      <div class="comp-desc">Backend penyimpanan cold tier yang kompatibel dengan S3 API. Di-deploy on-premise. Menyimpan segment dalam format identik dengan local.</div>
+      <div class="comp-tag">COLD STORAGE</div>
+    </div>
+    <div class="comp-card" style="--comp-color:var(--purple);">
+      <div class="comp-icon">🧵</div>
+      <div class="comp-title">Tier Fetch Thread</div>
+      <div class="comp-desc">Dedicated thread pool khusus untuk stream data dari MinIO ke consumer. Sepenuhnya terpisah dari network thread RT consumer — zero contention.</div>
+      <div class="comp-tag">ISOLATION</div>
+    </div>
+    <div class="comp-card" style="--comp-color:var(--amber);">
+      <div class="comp-icon">⏱️</div>
+      <div class="comp-title">Hotset & Segment Roll</div>
+      <div class="comp-desc">Segment di-roll saat mencapai <code>segment.bytes</code> atau <code>segment.ms</code>. Setelah terupload dan <code>hotset.ms</code> berlalu, local copy dihapus secara aman.</div>
+      <div class="comp-tag">LIFECYCLE</div>
+    </div>
+  </div>
+
+  <!-- Resources -->
+  <div class="section-label">// RESOURCES DALAM PROJECT INI</div>
+  <div class="resources">
+    <a href="project_summary.html" class="res-card" style="--res-color:var(--orange);">
+      <div class="res-icon">📋</div>
+      <div class="res-label">PROJECT OVERVIEW</div>
+      <div class="res-title">Project Summary</div>
+      <div class="res-desc">Halaman ini — arsitektur, problem statement, komponen kunci, dan lifecycle segment.</div>
+      <div class="res-cta">Kamu di sini</div>
+    </a>
+    <a href="tiered_storage_flow.html" class="res-card" style="--res-color:var(--cyan);">
+      <div class="res-icon">⚡</div>
+      <div class="res-label">INTERACTIVE VISUALIZATION</div>
+      <div class="res-title">Animated Flow Diagram</div>
+      <div class="res-desc">Visualisasi real-time Write / Tiering / Fetch flow dengan packet animation dan node detail.</div>
+      <div class="res-cta">Buka Flow</div>
+    </a>
+    <a href="tiered_storage_faq.html" class="res-card" style="--res-color:var(--purple);">
+      <div class="res-icon">❓</div>
+      <div class="res-label">DEEP-DIVE Q&A</div>
+      <div class="res-title">Segment FAQ</div>
+      <div class="res-desc">24 pertanyaan mendalam — segment files, MinIO structure, failure recovery, RBAC, encryption.</div>
+      <div class="res-cta">Buka FAQ</div>
+    </a>
+    <a href="tiered_storage_confluent.pptx" download class="res-card" style="--res-color:var(--amber);">
+      <div class="res-icon">📊</div>
+      <div class="res-label">PRESENTATION</div>
+      <div class="res-title">PowerPoint Slides</div>
+      <div class="res-desc">Presentasi lengkap dalam format .pptx — cocok untuk sharing ke tim atau atasan.</div>
+      <div class="res-cta">Download .pptx</div>
+    </a>
+  </div>
+
+</div>
+
+<footer>CONFLUENT TIERED STORAGE · KIP-405 · ZOOKEEPER MODE · ON-PREMISE · MINIO</footer>
+
+<script>
+function toggleNav(){
+  document.getElementById('navToggle').classList.toggle('open');
+  document.getElementById('navMobile').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const nav = document.getElementById('navMobile');
+  const btn = document.getElementById('navToggle');
+  if(nav.classList.contains('open') && !nav.contains(e.target) && !btn.contains(e.target)){
+    nav.classList.remove('open');
+    btn.classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>
