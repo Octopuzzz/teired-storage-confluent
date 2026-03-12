@@ -1201,5 +1201,21 @@ function updateArrows() {
 })();
 </script>
 
+<script>
+// ── Init arrows after full layout ──
+// window.load fires after all resources (fonts, images) are ready
+window.addEventListener('load', () => {
+  // Double rAF: first frame requests layout, second reads it
+  requestAnimationFrame(() => requestAnimationFrame(updateArrows));
+});
+// Also fix on resize (canvas width changes → SVG scale changes)
+window.addEventListener('resize', updateArrows);
+// ResizeObserver as extra safety for when nav/fonts affect canvas size
+if (window.ResizeObserver) {
+  new ResizeObserver(updateArrows).observe(document.getElementById('flowCanvas'));
+}
+</script>
+
+
 </body>
 </html>
